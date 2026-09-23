@@ -1,0 +1,10 @@
+psycopg2-binary
+pandas
+numpy
+python-dotenv
+requests
+torch
+torch_geometric
+scikit-learn
+tqdm
+matplotlib

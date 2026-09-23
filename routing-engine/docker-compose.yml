@@ -1,0 +1,62 @@
+services:
+  # OSRM Backend
+  osrm:
+    image: osrm/osrm-backend:latest
+    container_name: route_osrm
+    restart: always
+    ports:
+      - "5005:5000"
+    volumes:
+      - ./data:/data
+    # Use Multi-Level Dijkstra (MLD) algorithm for fast routing
+    command: "osrm-routed --algorithm mld /data/sri-lanka-latest.osrm"
+
+  # VROOM Backend (Optimization Solver)
+  vroom:
+    image: ghcr.io/vroom-project/vroom-docker:latest
+    container_name: route_vroom
+    restart: always
+    network_mode: "service:osrm"
+    environment:
+      - VROOM_ROUTER=osrm
+    depends_on:
+      - osrm
+
+  # PostgreSQL with PostGIS
+  db:
+    image: postgis/postgis:15-3.3
+    container_name: route_db
+    restart: always
+    ports:
+      - "5433:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=routing_db
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db-init:/docker-entrypoint-initdb.d
+
+  # FastAPI Backend
+  api:
+    platform: linux/amd64
+    build: ./api
+    container_name: route_api
+    restart: always
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./api:/app
+    environment:
+      - DB_USER=postgres
+      - DB_PASS=postgres
+      - DB_HOST=route_db
+      - DB_PORT=5432
+      - DB_NAME=routing_db
+      - VROOM_URL=http://osrm:3000
+    depends_on:
+      - db
+      - vroom
+
+volumes:
+  pgdata:

@@ -1,0 +1,48 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+env/
+ENV/
+
+# Data and Models
+data/*.csv
+data/*.osrm*
+ml-pipeline/*.pth
+
+# OS Files
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*.md.backup
+
+# Log Files
+*.log
+data/*.osm.pbf

@@ -1,0 +1,31 @@
+/* Custom map marker styles */
+.depot-marker {
+    background-color: #4f46e5;
+    color: white;
+    border-radius: 50%;
+    text-align: center;
+    line-height: 24px;
+    font-weight: bold;
+    border: 2px solid white;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    transition: transform 0.3s ease;
+}
+
+.drop-marker {
+    background-color: #f59e0b;
+    color: white;
+    border-radius: 50%;
+    text-align: center;
+    line-height: 24px;
+    font-weight: bold;
+    border: 2px solid white;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    transition: transform 0.3s ease;
+}
+
+.marker-highlight {
+    background-color: #ef4444 !important; /* Red */
+    transform: scale(1.4) translateY(-10px);
+    z-index: 1000 !important;
+    box-shadow: 0 10px 15px rgba(0,0,0,0.5);
+}

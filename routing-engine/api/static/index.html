@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Route Optimizer Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="h-screen flex flex-col bg-gray-100 font-sans">
+    
+    <!-- Navbar -->
+    <header class="bg-indigo-600 text-white p-4 shadow-md flex justify-between items-center">
+        <h1 class="text-xl font-bold">Delivery Route Optimizer (Colombo)</h1>
+        <div class="flex items-center">
+            <label for="start-time" class="mr-2 text-sm font-semibold">Start:</label>
+            <input type="time" id="start-time" value="09:00" class="text-black px-2 py-1 rounded mr-3 shadow-sm outline-none">
+            
+            <label for="end-time" class="mr-2 text-sm font-semibold">Deadline:</label>
+            <input type="time" id="end-time" value="17:00" class="text-black px-2 py-1 rounded mr-4 shadow-sm outline-none">
+            
+            <button id="btn-optimize" class="bg-white text-indigo-600 px-4 py-2 rounded shadow font-semibold hover:bg-gray-100 transition">
+                Optimize Route
+            </button>
+            <button id="btn-clear" class="bg-red-500 text-white px-4 py-2 rounded shadow font-semibold hover:bg-red-600 transition ml-2">
+                Clear Map
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <div class="flex-1 flex overflow-hidden">
+        
+        <!-- Sidebar -->
+        <div class="w-1/4 bg-white p-4 shadow-lg overflow-y-auto flex flex-col">
+            <h2 class="text-lg font-bold mb-2">Routing Summary</h2>
+            <div id="stats-panel" class="bg-gray-50 p-3 rounded border border-gray-200 mb-4 text-sm text-gray-700">
+                <p><strong>Total Drops:</strong> <span id="val-drops">0</span></p>
+                <p><strong>Est. Distance:</strong> <span id="val-dist">0 km</span></p>
+                <p><strong>Est. Duration:</strong> <span id="val-time">0 min</span></p>
+            </div>
+            
+            <h3 class="font-semibold text-gray-600 border-b pb-1 mb-2">Instructions</h3>
+            <ul class="text-sm text-gray-600 list-disc pl-4 space-y-1 mb-4">
+                <li>Click anywhere on the map to add delivery drops.</li>
+                <li>The first point is always your <strong>Depot</strong> (Start/End).</li>
+                <li>Click "Optimize Route" to trigger the VROOM engine.</li>
+            </ul>
+            
+            <h3 class="font-semibold text-gray-600 border-b pb-1 mb-2">Turn-by-turn Sequence</h3>
+            <div id="route-steps" class="flex-1 overflow-y-auto text-sm space-y-2">
+                <!-- Sequence steps injected here -->
+            </div>
+        </div>
+
+        <!-- Map Container -->
+        <div id="map" class="flex-1 relative z-0">
+            <div id="loading-overlay" class="absolute inset-0 bg-white/80 z-[1000] hidden flex-col justify-center items-center">
+                <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mb-2"></div>
+                <p class="font-semibold text-indigo-600">VROOM is calculating...</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/leaflet-polylinedecorator@1.6.0/dist/leaflet.polylineDecorator.min.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
