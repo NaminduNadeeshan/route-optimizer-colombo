@@ -66,141 +66,190 @@ def load_real_colombo_graph():
     return data, node_mapping
 
 # --------------------------
-# 2. Model Architecture
+# 2. Benchmark Model Architectures
 # --------------------------
+
+class HistoricalAverage:
+    """Non-ML Baseline: Predicts the historical average of the target hour."""
+    def __init__(self):
+        self.node_hour_means = None
+        
+    def fit(self, X_train):
+        # X_train shape: [num_windows, num_nodes, seq_len+1] 
+        # For a true implementation, we would group by hour of day across weeks.
+        # Here we just take the global mean per node for simplicity.
+        self.node_means = X_train.mean(dim=(0, 2)).squeeze() # [num_nodes]
+        
+    def predict(self, x_window):
+        # x_window shape: [num_nodes, seq_len, 1]
+        batch_size = x_window.size(0)
+        return self.node_means.unsqueeze(1) # [num_nodes, 1]
+
+
+class PureGRU(nn.Module):
+    """Temporal Only Baseline: No spatial GCN layers."""
+    def __init__(self, seq_len=12, hidden_dim=64, future_steps=1):
+        super(PureGRU, self).__init__()
+        self.gru = nn.GRU(input_size=1, hidden_size=hidden_dim, batch_first=True)
+        self.fc = nn.Linear(hidden_dim, future_steps)
+        
+    def forward(self, x, edge_index):
+        # Ignore edge_index completely
+        out, _ = self.gru(x)
+        return self.fc(out[:, -1, :])
+
+
+class PureGCN(nn.Module):
+    """Spatial Only Baseline: No temporal sequence memory, just looks at the immediate previous hour."""
+    def __init__(self, hidden_dim=64, future_steps=1):
+        super(PureGCN, self).__init__()
+        self.gcn1 = GCNConv(1, hidden_dim)
+        self.gcn2 = GCNConv(hidden_dim, hidden_dim)
+        self.fc = nn.Linear(hidden_dim, future_steps)
+        
+    def forward(self, x, edge_index):
+        # x: [num_nodes, seq_len, 1]. Only take the very last hour t-1
+        x_last = x[:, -1, :] 
+        g_out = F.relu(self.gcn1(x_last, edge_index))
+        g_out = F.relu(self.gcn2(g_out, edge_index))
+        return self.fc(g_out)
+
+
 class STGNN(nn.Module):
+    """Spatio-Temporal Graph Neural Network (Our Proposed Model)"""
     def __init__(self, seq_len=12, hidden_dim=64, future_steps=1):
         super(STGNN, self).__init__()
-        self.seq_len = seq_len
-        self.hidden_dim = hidden_dim
-        
         self.gru1 = nn.GRU(input_size=1, hidden_size=hidden_dim, batch_first=True)
-        # Spatial Graph Convolution (Residual)
         self.gcn1 = GCNConv(hidden_dim, hidden_dim, normalize=False)
         self.gcn2 = GCNConv(hidden_dim, hidden_dim, normalize=False)
         self.gru2 = nn.GRU(input_size=hidden_dim, hidden_size=hidden_dim, batch_first=True)
-        
         self.fc1 = nn.Linear(hidden_dim, 32)
         self.fc2 = nn.Linear(32, future_steps)
         self.dropout = nn.Dropout(0.2)
         
     def forward(self, x, edge_index):
-        # x shape: [num_nodes, seq_len, 1]
-        batch_size = x.size(0)
+        out, _ = self.gru1(x)
+        t_last = out[:, -1, :] 
         
-        # Temporal Gating 1
-        out, h_n = self.gru1(x) # out: [num_nodes, seq_len, hidden_dim]
+        g_out = self.dropout(F.relu(self.gcn1(t_last, edge_index)))
+        g_out2 = F.relu(self.gcn2(g_out, edge_index))
         
-        # We take the last time step for spatial message passing
-        t_last = out[:, -1, :] # [num_nodes, hidden_dim]
+        spatial_features = t_last + g_out2 
         
-        # Spatial Graph Convolution (with Residual Connection)
-        g_out = self.gcn1(t_last, edge_index)
-        g_out = F.relu(g_out)
-        g_out = self.dropout(g_out)
-        
-        g_out2 = self.gcn2(g_out, edge_index)
-        g_out2 = F.relu(g_out2)
-        
-        # Residual connection
-        spatial_features = t_last + g_out2 # [num_nodes, hidden_dim]
-        
-        # Decode future predictions
-        pred = self.fc1(spatial_features)
-        pred = F.relu(pred)
-        pred = self.dropout(pred)
-        pred = self.fc2(pred) # [num_nodes, future_steps]
-        
-        return pred
+        pred = self.dropout(F.relu(self.fc1(spatial_features)))
+        return self.fc2(pred)
+
 
 # --------------------------
-# 3. Training Loop
+# 3. Training & Benchmark Loop
 # --------------------------
-def main():
-    print("Starting Real-World ST-GNN Training on Colombo OSM Graph...")
-    device = torch.device("mps" if torch.backends.mps.is_available() else "cuda" if torch.cuda.is_available() else "cpu")
-    print(f"Using hardware accelerator: {device}")
-    
-    # 1. Load Real Data
-    data, mapping = load_real_colombo_graph()
-    data = data.to(device)
-    
-    # We will use 12 hours of sequence to predict the next 1 hour
-    SEQ_LEN = 12
-    FUTURE_STEPS = 1
-    
-    # To maximize our data, we'll slice the 24 hours into 12 distinct training windows
-    # Window 0: hours 0-11 -> predict hour 12
-    # Window 1: hours 1-12 -> predict hour 13
-    # ...
-    
-    model = STGNN(seq_len=SEQ_LEN, hidden_dim=64, future_steps=FUTURE_STEPS).to(device)
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.005)
+
+def compute_metrics(pred, target):
+    """Calculate MAE and RMSE in absolute terms (km/h)"""
+    pred = pred.detach().cpu().numpy()
+    target = target.detach().cpu().numpy()
+    mae = np.mean(np.abs(pred - target))
+    rmse = np.sqrt(np.mean((pred - target) ** 2))
+    return mae, rmse
+
+def train_model(model, optimizer, data, train_windows, test_windows, SEQ_LEN, FUTURE_STEPS, device, epochs=50):
     criterion = nn.MSELoss()
+    model.to(device)
     
-    # We'll split the nodes into 80% train / 20% test
-    num_nodes = data.x.size(0)
-    indices = torch.randperm(num_nodes)
-    train_idx = indices[:int(0.8 * num_nodes)]
-    test_idx = indices[int(0.8 * num_nodes):]
-    
-    EPOCHS = 150
-    train_losses = []
-    test_losses = []
-    
-    print("\nCommencing ST-GNN Training on REAL GPS data...")
-    for epoch in tqdm(range(EPOCHS)):
+    for epoch in range(epochs):
         model.train()
-        optimizer.zero_grad()
-        
-        total_train_loss = 0
-        total_test_loss = 0
-        
-        # Train across the time windows
-        windows_count = 24 - SEQ_LEN - FUTURE_STEPS
-        
-        for w in range(windows_count):
-            x_window = data.x[:, w:w+SEQ_LEN, :]
-            y_window = data.x[:, w+SEQ_LEN : w+SEQ_LEN+FUTURE_STEPS, 0] # target speed
+        for w in train_windows:
+            x_w = data.x[:, w:w+SEQ_LEN, :].to(device)
+            y_w = data.x[:, w+SEQ_LEN : w+SEQ_LEN+FUTURE_STEPS, 0].to(device)
             
-            predictions = model(x_window, data.edge_index)
-            
-            # Loss only on training nodes
-            loss = criterion(predictions[train_idx], y_window[train_idx])
+            optimizer.zero_grad()
+            pred = model(x_w, data.edge_index.to(device))
+            loss = criterion(pred, y_w)
             loss.backward()
             optimizer.step()
             
-            total_train_loss += loss.item()
+    # Evaluate on held-out Chronological Test Set
+    model.eval()
+    all_preds, all_targets = [], []
+    with torch.no_grad():
+        for w in test_windows:
+            x_w = data.x[:, w:w+SEQ_LEN, :].to(device)
+            y_w = data.x[:, w+SEQ_LEN : w+SEQ_LEN+FUTURE_STEPS, 0].to(device)
+            pred = model(x_w, data.edge_index.to(device))
+            all_preds.append(pred)
+            all_targets.append(y_w)
             
-            # Evaluation on unseen test nodes
-            model.eval()
-            with torch.no_grad():
-                test_pred = model(x_window, data.edge_index)
-                t_loss = criterion(test_pred[test_idx], y_window[test_idx])
-                total_test_loss += t_loss.item()
-            model.train()
-            
-        train_losses.append(total_train_loss / windows_count)
-        test_losses.append(total_test_loss / windows_count)
+    return compute_metrics(torch.cat(all_preds), torch.cat(all_targets))
+
+
+def main():
+    print("Starting ML Traffic Forecasting Benchmark on Colombo OSM Graph...")
+    device = torch.device("mps" if torch.backends.mps.is_available() else "cuda" if torch.cuda.is_available() else "cpu")
+    
+    data, mapping = load_real_colombo_graph()
+    
+    SEQ_LEN = 12
+    FUTURE_STEPS = 1
+    total_hours = data.x.size(1) # E.g., 24
+    
+    windows_count = total_hours - SEQ_LEN - FUTURE_STEPS
+    if windows_count < 2:
+        print("Not enough temporal data for splitting. Please generate more days of traffic.")
+        return
         
-    final_rmse = np.sqrt(test_losses[-1])
-    print(f"\nTraining Complete!")
-    print(f"📊 Final Test RMSE Error: ±{final_rmse:.2f} km/h (on 20% unseen roads)")
+    # Chronological Split (No Data Leakage)
+    split_idx = int(windows_count * 0.7)
+    train_windows = list(range(0, split_idx))
+    test_windows = list(range(split_idx, windows_count))
     
-    # Save learning curve
-    plt.figure(figsize=(10, 5))
-    plt.plot(train_losses, label="Train MSE Loss")
-    plt.plot(test_losses, label="Test MSE Loss")
-    plt.title("ST-GNN Real Colombo Data Learning Curve")
-    plt.xlabel("Epochs")
-    plt.ylabel("Mean Squared Error (Speed km/h)")
-    plt.legend()
-    plt.savefig("real_learning_curve.png")
+    print(f"\nChronological Split:")
+    print(f"Training Windows: {train_windows}")
+    print(f"Held-Out Test Windows: {test_windows}\n")
     
-    # Save Weights
+    # 1. Historical Average
+    ha = HistoricalAverage()
+    # Build pseudo-train tensor for HA
+    train_tensors = [data.x[:, w:w+SEQ_LEN+1, :] for w in train_windows]
+    ha.fit(torch.stack(train_tensors))
+    
+    ha_preds, ha_targets = [], []
+    for w in test_windows:
+        x_w = data.x[:, w:w+SEQ_LEN, :]
+        y_w = data.x[:, w+SEQ_LEN : w+SEQ_LEN+FUTURE_STEPS, 0]
+        ha_preds.append(ha.predict(x_w))
+        ha_targets.append(y_w)
+    ha_mae, ha_rmse = compute_metrics(torch.cat(ha_preds), torch.cat(ha_targets))
+    
+    # 2. Pure GRU
+    gru_model = PureGRU(seq_len=SEQ_LEN)
+    gru_opt = torch.optim.Adam(gru_model.parameters(), lr=0.01)
+    gru_mae, gru_rmse = train_model(gru_model, gru_opt, data, train_windows, test_windows, SEQ_LEN, FUTURE_STEPS, device)
+    
+    # 3. Pure GCN
+    gcn_model = PureGCN()
+    gcn_opt = torch.optim.Adam(gcn_model.parameters(), lr=0.01)
+    gcn_mae, gcn_rmse = train_model(gcn_model, gcn_opt, data, train_windows, test_windows, SEQ_LEN, FUTURE_STEPS, device)
+    
+    # 4. ST-GNN
+    stgnn_model = STGNN(seq_len=SEQ_LEN)
+    stgnn_opt = torch.optim.Adam(stgnn_model.parameters(), lr=0.01)
+    stgnn_mae, stgnn_rmse = train_model(stgnn_model, stgnn_opt, data, train_windows, test_windows, SEQ_LEN, FUTURE_STEPS, device)
+    
+    # Save ST-GNN weights
     model_path = os.path.join(os.path.dirname(__file__), "colombo_traffic_model_real.pth")
-    torch.save(model.state_dict(), model_path)
-    print(f"💾 Real traffic weights saved to: {model_path}")
+    torch.save(stgnn_model.state_dict(), model_path)
+    
+    # Output Benchmark Table
+    print("\nEvaluating on Held-Out Chronological Test Set...")
+    print("==========================================")
+    print(f"{'Model':<22} | {'MAE (km/h)':<10} | {'RMSE (km/h)':<10}")
+    print("------------------------------------------")
+    print(f"{'Historical Average':<22} | {ha_mae:<10.2f} | {ha_rmse:<10.2f}")
+    print(f"{'Pure GRU':<22} | {gru_mae:<10.2f} | {gru_rmse:<10.2f}")
+    print(f"{'Pure GCN':<22} | {gcn_mae:<10.2f} | {gcn_rmse:<10.2f}")
+    print(f"{'ST-GNN (Ours)':<22} | {stgnn_mae:<10.2f} | {stgnn_rmse:<10.2f}")
+    print("==========================================\n")
+    print(f"💾 Production weights saved to: {model_path}")
 
 if __name__ == "__main__":
     main()
