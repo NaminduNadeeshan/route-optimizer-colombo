@@ -568,16 +568,19 @@ function renderRoute(data) {
         routeLines.push(poly);
         
         // Add directional arrows
-        const decorator = L.polylineDecorator(poly, {
-            patterns: [
-                {
-                    offset: 35, 
-                    repeat: 80, 
-                    symbol: L.Symbol.arrowHead({pixelSize: 14, pathOptions: {fillOpacity: 1, color: '#1e3a8a', weight: 2}})
-                }
-            ]
-        }).addTo(map);
-        routeLines.push(decorator);
+        let decorator = null;
+        if (typeof L.polylineDecorator !== 'undefined' && typeof L.Symbol !== 'undefined') {
+            decorator = L.polylineDecorator(poly, {
+                patterns: [
+                    {
+                        offset: 35, 
+                        repeat: 80, 
+                        symbol: L.Symbol.arrowHead({pixelSize: 14, pathOptions: {fillOpacity: 1, color: '#1e3a8a', weight: 2}})
+                    }
+                ]
+            }).addTo(map);
+            routeLines.push(decorator);
+        }
         
         window.routeSegmentLines.push({line: poly, decorator: decorator});
     });
