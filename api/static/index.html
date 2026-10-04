@@ -12,7 +12,15 @@
     
     <!-- Navbar -->
     <header class="bg-indigo-600 text-white p-4 shadow-md flex justify-between items-center">
-        <h1 class="text-xl font-bold">Delivery Route Optimizer (Colombo)</h1>
+        <div class="flex items-center">
+            <h1 class="text-xl font-bold mr-4">Route Optimizer</h1>
+            <select id="city-selector" class="text-black px-2 py-1 rounded shadow-sm outline-none font-semibold cursor-pointer border-none" style="min-width: 180px;">
+                <option value="beijing" selected>🇨🇳 Beijing (T-Drive Data)</option>
+                <option value="colombo">🇱🇰 Colombo (Local Data)</option>
+                <option value="porto">🇵🇹 Porto (Euro Data)</option>
+                <option value="california">🇺🇸 California (PeMS04)</option>
+            </select>
+        </div>
         <div class="flex items-center">
             <label for="start-time" class="mr-2 text-sm font-semibold">Start:</label>
             <input type="time" id="start-time" value="09:00" class="text-black px-2 py-1 rounded mr-3 shadow-sm outline-none">

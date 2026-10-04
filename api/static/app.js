@@ -1,5 +1,5 @@
 // Initialize map centered on Colombo
-const map = L.map('map').setView([6.9271, 79.8612], 13);
+const map = L.map('map').setView([39.9042, 116.4074], 13);
 
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '© OpenStreetMap contributors',
@@ -349,4 +349,27 @@ map.on('click', function(e) {
             window.highlightMarker(null, null);
         }
     }, 100);
+});
+
+// Handle City Change Dropdown
+document.getElementById('city-selector').addEventListener('change', function(e) {
+    const coords = {
+        'beijing': [39.9042, 116.4074],
+        'colombo': [6.9271, 79.8612],
+        'porto': [41.1579, -8.6291],
+        'california': [37.7749, -122.4194]
+    };
+    
+    if (coords[e.target.value]) {
+        // Clear all markers and lines when switching city
+        if (document.getElementById('btn-clear')) {
+            document.getElementById('btn-clear').click();
+        }
+        
+        // Fly to new location
+        map.flyTo(coords[e.target.value], 13, {
+            animate: true,
+            duration: 1.5
+        });
+    }
 });
