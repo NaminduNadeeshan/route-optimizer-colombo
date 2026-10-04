@@ -221,6 +221,8 @@ async def optimize_route(payload: OptimizeRouteRequest):
     return {
         "rider_id": payload.rider_id,
         "total_duration_seconds": summary.get("duration", 0) + summary.get("service", 0),
+        "driving_duration_seconds": summary.get("duration", 0),
+        "service_duration_seconds": summary.get("service", 0),
         "total_distance_meters": summary.get("distance", summary.get("cost", 0)),
         "unoptimized_distance_meters": unoptimized_distance,
         "unoptimized_duration_seconds": unoptimized_duration,

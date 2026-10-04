@@ -106,15 +106,35 @@
                         <div id="badge-dist-save" class="absolute top-2 right-2 bg-emerald-100 text-emerald-700 text-[10px] font-bold px-1.5 py-0.5 rounded-md hidden">-0 km</div>
                     </div>
                     <div class="col-span-2 bg-brand-50 border border-brand-100 rounded-xl p-3 flex flex-col relative">
-                        <div class="flex items-center text-brand-700 mb-1">
-                            <span class="material-symbols-rounded text-[18px] mr-1.5">schedule</span>
-                            <span class="text-sm font-semibold">Estimated Time</span>
+                        <div class="flex items-center justify-between mb-2">
+                            <div class="flex items-center text-brand-700">
+                                <span class="material-symbols-rounded text-[18px] mr-1.5">schedule</span>
+                                <span class="text-sm font-semibold">Total Shift Time</span>
+                            </div>
+                            <div id="badge-time-save" class="bg-emerald-500 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow-sm hidden">Saved 0 min</div>
                         </div>
-                        <div class="flex items-end space-x-2">
-                            <span id="val-time" class="text-lg font-bold text-brand-700">0 min</span>
-                            <span id="val-time-old" class="text-xs font-medium text-brand-400/70 line-through mb-0.5 hidden">0 min</span>
+                        
+                        <div class="flex items-end space-x-2 mb-3">
+                            <span id="val-time" class="text-2xl font-bold text-brand-700 tracking-tight">0 min</span>
+                            <span id="val-time-old" class="text-xs font-medium text-brand-400/70 line-through mb-1 hidden">0 min</span>
                         </div>
-                        <div id="badge-time-save" class="absolute top-3 right-3 bg-emerald-500 text-white text-xs font-bold px-2 py-1 rounded-lg shadow-sm hidden">Saved 0 min</div>
+                        
+                        <div class="flex items-center justify-between border-t border-brand-200/50 pt-2 mt-1">
+                            <div class="flex flex-col">
+                                <span class="text-[10px] text-brand-600/80 font-bold uppercase tracking-wide">Driving</span>
+                                <span id="val-time-driving" class="text-sm font-bold text-brand-700">0 min</span>
+                            </div>
+                            <div class="h-6 w-px bg-brand-200/50"></div>
+                            <div class="flex flex-col">
+                                <span class="text-[10px] text-brand-600/80 font-bold uppercase tracking-wide">Wait Time</span>
+                                <span id="val-time-service" class="text-sm font-bold text-brand-700">0 min</span>
+                            </div>
+                            <div class="h-6 w-px bg-brand-200/50"></div>
+                            <div class="flex flex-col">
+                                <span class="text-[10px] text-rose-500/80 font-bold uppercase tracking-wide">Unassigned</span>
+                                <span id="val-unassigned" class="text-sm font-bold text-rose-600">0 drops</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -181,6 +201,6 @@
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/leaflet-polylinedecorator@1.6.0/dist/leaflet.polylineDecorator.min.js"></script>
-    <script src="app.js?v=9"></script>
+    <script src="app.js?v=10"></script>
 </body>
 </html>

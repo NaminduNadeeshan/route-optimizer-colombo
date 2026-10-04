@@ -267,9 +267,24 @@ function renderRoute(data) {
     
     const distKm = (data.total_distance_meters / 1000).toFixed(2);
     const timeMin = Math.round(data.total_duration_seconds / 60);
+    const driveMin = Math.round((data.driving_duration_seconds || 0) / 60);
+    const serviceMin = Math.round((data.service_duration_seconds || 0) / 60);
+    const unassignedCount = data.unassigned_jobs || 0;
     
     document.getElementById('val-dist').innerText = `${distKm} km`;
     document.getElementById('val-time').innerText = `${timeMin} min`;
+    document.getElementById('val-time-driving').innerText = `${driveMin} min`;
+    document.getElementById('val-time-service').innerText = `${serviceMin} min`;
+    
+    const unassignedEl = document.getElementById('val-unassigned');
+    unassignedEl.innerText = `${unassignedCount} drops`;
+    if (unassignedCount > 0) {
+        unassignedEl.classList.remove('text-rose-600', 'text-slate-400');
+        unassignedEl.classList.add('text-rose-600');
+    } else {
+        unassignedEl.classList.remove('text-rose-600', 'text-slate-400');
+        unassignedEl.classList.add('text-slate-400');
+    }
     
     // Handle Savings Badges
     const unoptDist = data.unoptimized_distance_meters || 0;
