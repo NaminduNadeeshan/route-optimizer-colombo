@@ -227,6 +227,7 @@ async def optimize_route(payload: OptimizeRouteRequest):
         "unoptimized_distance_meters": unoptimized_distance,
         "unoptimized_duration_seconds": unoptimized_duration,
         "unassigned_jobs": summary.get("unassigned", 0),
+        "unassigned_details": vroom_data.get("unassigned", []),
         "route_sequence": steps,
         "geometry": route.get("geometry")
     }

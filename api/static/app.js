@@ -411,6 +411,54 @@ function renderRoute(data) {
         `;
     });
     
+    // Handle Unassigned Jobs
+    if (data.unassigned_details && data.unassigned_details.length > 0) {
+        stepsDiv.innerHTML += `
+            <div class="mt-4 mb-2 flex items-center">
+                <div class="flex-1 h-px bg-rose-200"></div>
+                <span class="px-3 text-[10px] font-bold text-rose-500 uppercase tracking-wider">Unassigned Drops (${data.unassigned_details.length})</span>
+                <div class="flex-1 h-px bg-rose-200"></div>
+            </div>
+        `;
+        
+        data.unassigned_details.forEach((job) => {
+            if (!job.location) return;
+            const lon = job.location[0];
+            const lat = job.location[1];
+            
+            // Find matching marker by coordinates
+            const markerIdx = points.findIndex(p => Math.abs(p.lat - lat) < 0.0001 && Math.abs(p.lon - lon) < 0.0001);
+            if (markerIdx !== -1) {
+                const marker = window.markers[markerIdx];
+                
+                // Turn unassigned markers red
+                const icon = L.divIcon({
+                    className: 'custom-modern-marker bg-transparent border-0',
+                    html: `<div class="w-7 h-7 bg-rose-500 rounded-full border-2 border-white shadow-[0_4px_10px_rgba(244,63,94,0.4)] flex items-center justify-center text-white text-xs font-bold ring-2 ring-white/50">!</div>`, 
+                    iconSize: [32, 32],
+                    iconAnchor: [16, 16]
+                });
+                marker.setIcon(icon);
+                marker.bindPopup(`<b>Unassigned Drop</b><br>Could not fit within shift time limit.`);
+                
+                // Add to sidebar
+                stepsDiv.innerHTML += `
+                    <div class="group cursor-pointer relative mt-2" onclick="map.setView([${lat}, ${lon}], 16); window.highlightMarker(${markerIdx}, null);">
+                        <div class="flex items-start bg-rose-50 border border-rose-100 rounded-xl p-3 shadow-sm hover:shadow-md transition-all z-10 relative">
+                            <div class="w-8 h-8 rounded-lg flex items-center justify-center mr-3 flex-shrink-0 text-rose-600 bg-rose-100">
+                                <span class="material-symbols-rounded text-[18px]">cancel</span>
+                            </div>
+                            <div>
+                                <p class="font-bold text-slate-800 text-sm leading-tight">Drop-off ${markerIdx}</p>
+                                <p class="text-[11px] text-rose-500 font-semibold mt-0.5">Shift Window Exceeded</p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+        });
+    }
+    
     // Split geometry into segments between stops by finding closest points
     window.routeSegmentLines = [];
     let segments = [];
