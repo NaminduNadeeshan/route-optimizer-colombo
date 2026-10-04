@@ -147,6 +147,62 @@ document.getElementById('btn-clear').addEventListener('click', () => {
     `;
 });
 
+// Export Pins
+document.getElementById('btn-export').addEventListener('click', () => {
+    if (points.length === 0) {
+        alert("No pins to export!");
+        return;
+    }
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(points, null, 2));
+    const dlAnchorElem = document.createElement('a');
+    dlAnchorElem.setAttribute("href", dataStr);
+    dlAnchorElem.setAttribute("download", `route_pins_${new Date().getTime()}.json`);
+    dlAnchorElem.click();
+});
+
+// Import Pins
+document.getElementById('btn-import').addEventListener('click', () => {
+    document.getElementById('file-import').click();
+});
+
+document.getElementById('file-import').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const importedPoints = JSON.parse(e.target.result);
+            if (!Array.isArray(importedPoints)) throw new Error("Invalid JSON format");
+            
+            // Clear current map
+            document.getElementById('btn-clear').click();
+            
+            // Plot imported points
+            importedPoints.forEach(p => {
+                if (p.lat && p.lon) {
+                    // Simulate map click to reuse existing logic
+                    map.fireEvent('click', {
+                        latlng: L.latLng(p.lat, p.lon)
+                    });
+                }
+            });
+            
+            // Fly to bounds if we have points
+            if (importedPoints.length > 0) {
+                const latlngs = importedPoints.map(p => [p.lat, p.lon]);
+                map.fitBounds(L.latLngBounds(latlngs), {padding: [50, 50]});
+            }
+            
+        } catch (err) {
+            alert("Failed to parse JSON file.");
+        }
+    };
+    reader.readAsText(file);
+    // Reset file input so the same file can be uploaded again
+    e.target.value = '';
+});
+
 // Optimize!
 document.getElementById('btn-optimize').addEventListener('click', async () => {
     if (points.length < 2) {

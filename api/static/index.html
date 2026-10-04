@@ -187,9 +187,16 @@
         
         <!-- Map Floating Controls -->
         <div class="absolute top-6 right-6 z-[400] flex flex-col gap-3">
+            <button id="btn-export" class="bg-white text-slate-600 hover:text-brand-600 w-10 h-10 rounded-xl shadow-lg border border-slate-100 flex items-center justify-center transition-colors group" title="Export Pins JSON">
+                <span class="material-symbols-rounded text-[22px]">download</span>
+            </button>
+            <button id="btn-import" class="bg-white text-slate-600 hover:text-brand-600 w-10 h-10 rounded-xl shadow-lg border border-slate-100 flex items-center justify-center transition-colors group" title="Import Pins JSON">
+                <span class="material-symbols-rounded text-[22px]">upload</span>
+            </button>
             <button id="btn-clear" class="bg-white text-slate-600 hover:text-red-600 w-10 h-10 rounded-xl shadow-lg border border-slate-100 flex items-center justify-center transition-colors group" title="Clear Map">
                 <span class="material-symbols-rounded text-[22px]">delete</span>
             </button>
+            <input type="file" id="file-import" accept=".json" class="hidden">
         </div>
         
         <!-- Logo Watermark on Map -->
@@ -201,6 +208,6 @@
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/leaflet-polylinedecorator@1.6.0/dist/leaflet.polylineDecorator.min.js"></script>
-    <script src="app.js?v=11"></script>
+    <script src="app.js?v=12"></script>
 </body>
 </html>
