@@ -109,24 +109,64 @@ def load_real_colombo_graph_advanced():
     return data, node_mapping
 
 class STGAT(nn.Module):
-    def __init__(self, seq_len=12, hidden_dim=64, input_size=6):
+    """
+    Enterprise-Grade ST-GAT Architecture with Deep Layers, Normalization, and Dropout.
+    """
+    def __init__(self, seq_len=12, hidden_dim=64, input_size=6, dropout=0.3):
         super(STGAT, self).__init__()
-        self.gat = GATConv(in_channels=input_size, out_channels=hidden_dim, heads=4, concat=False)
-        self.gru = nn.GRU(input_size=hidden_dim, hidden_size=hidden_dim, batch_first=True)
-        self.fc = nn.Linear(hidden_dim, 1)
+        # 1. Spatial Processing: Double GAT Layers for 2-hop neighborhood awareness
+        self.gat1 = GATConv(in_channels=input_size, out_channels=hidden_dim, heads=4, concat=False)
+        self.gat2 = GATConv(in_channels=hidden_dim, out_channels=hidden_dim, heads=4, concat=False)
+        
+        # 2. Regularization & Normalization
+        self.norm1 = nn.LayerNorm(hidden_dim)
+        self.dropout = nn.Dropout(dropout)
+        
+        # 3. Temporal Processing: Deep 2-Layer GRU for long-term memory
+        self.gru = nn.GRU(
+            input_size=hidden_dim, 
+            hidden_size=hidden_dim, 
+            num_layers=2,           # Deeper temporal processing
+            batch_first=True,
+            dropout=dropout         # Dropout between GRU layers
+        )
+        
+        # 4. Final Prediction: Multi-layer Perceptron (MLP)
+        self.fc1 = nn.Linear(hidden_dim, hidden_dim // 2)
+        self.relu = nn.ReLU()
+        self.fc2 = nn.Linear(hidden_dim // 2, 1)
 
     def forward(self, x_seq, edge_index):
         batch, seq, features = x_seq.size()
         gat_outs = []
+        
+        # Process the spatial graph at each time step
         for t in range(seq):
             x_t = x_seq[:, t, :]
-            g_out = self.gat(x_t, edge_index)
-            gat_outs.append(g_out.unsqueeze(1))
+            
+            # Layer 1: First Hop Intersection
+            g1 = self.gat1(x_t, edge_index)
+            g1 = self.relu(g1)
+            g1 = self.dropout(g1)
+            
+            # Layer 2: Second Hop Intersection (Residual/Skip Connection applied)
+            g2 = self.gat2(g1, edge_index)
+            g2 = self.norm1(g2 + g1) # Residual connection stabilizes deep training
+            
+            gat_outs.append(g2.unsqueeze(1))
         
+        # Pass the spatial embeddings through the Temporal GRU
         gru_in = torch.cat(gat_outs, dim=1)
         gru_out, _ = self.gru(gru_in)
-        out = self.fc(gru_out[:, -1, :])
-        return out
+        
+        # Extract the final hidden state and pass through MLP
+        last_hidden = gru_out[:, -1, :]
+        out = self.fc1(last_hidden)
+        out = self.relu(out)
+        out = self.dropout(out)
+        final_prediction = self.fc2(out)
+        
+        return final_prediction
 
 def train_model(model, optimizer, data, train_windows, test_windows, SEQ_LEN, FUTURE_STEPS, device, epochs=150, patience=20, model_name="Model", pretrained_path=None):
     criterion = nn.MSELoss()
@@ -165,15 +205,19 @@ def train_model(model, optimizer, data, train_windows, test_windows, SEQ_LEN, FU
         
         val_mae = np.mean(np.abs(val_preds - val_targets))
         
+        print(f"Epoch [{epoch+1}/{epochs}] | Validation MAE: {val_mae:.4f} km/h ", end="", flush=True)
+        
         if val_mae < best_val_mae:
+            print(f"| ⭐ New Best! Saving weights...", flush=True)
             best_val_mae = val_mae
             best_weights = copy.deepcopy(model.state_dict())
             torch.save(best_weights, save_path)
             patience_counter = 0
         else:
             patience_counter += 1
+            print(f"| ⚠️ No improvement (Patience: {patience_counter}/{patience})", flush=True)
             if patience_counter >= patience:
-                print(f"[{model_name}] Early stopping triggered at epoch {epoch}!")
+                print(f"[{model_name}] Early stopping triggered at epoch {epoch+1}!", flush=True)
                 break
                 
     if best_weights:
@@ -189,7 +233,7 @@ def train_model(model, optimizer, data, train_windows, test_windows, SEQ_LEN, FU
 
 def main():
     device = torch.device("mps" if torch.backends.mps.is_available() else "cuda" if torch.cuda.is_available() else "cpu")
-    print(f"Starting ML Traffic Forecasting Benchmark...")
+    print(f"Starting ML Traffic Forecasting Benchmark...", flush=True)
     
     data, node_mapping = load_real_colombo_graph_advanced()
     
@@ -198,27 +242,25 @@ def main():
     total_hours = data.x.size(1)
     
     windows = list(range(0, total_hours - SEQ_LEN - FUTURE_STEPS))
-    # Shuffle and split for robust learning on the 8760 hours
     import random
     random.seed(42)
     random.shuffle(windows)
     
-    # 5% for training (400 hours) is enough to learn the features without taking forever, 
-    # and 5% for testing to prove it learned
-    train_windows = windows[:400]
-    test_windows = windows[400:800]
+    # Use 32 windows for ultra-fast epoch iteration to show terminal output live
+    train_windows = windows[:32]
+    test_windows = windows[32:48]
     
-    stgat_model = STGAT(seq_len=SEQ_LEN, hidden_dim=64, input_size=6)
+    stgat_model = STGAT(seq_len=SEQ_LEN, hidden_dim=64, input_size=6, dropout=0.3)
     stgat_opt = torch.optim.AdamW(stgat_model.parameters(), lr=0.005)
     
     stgat_mae, stgat_rmse, stgat_mape, _ = train_model(
         stgat_model, stgat_opt, data, train_windows, test_windows, SEQ_LEN, FUTURE_STEPS, 
-        device, epochs=30, patience=5, model_name="Colombo Advanced ST-GAT"
+        device, epochs=15, patience=3, model_name="Colombo Advanced ST-GAT"
     )
     
-    print("\nEvaluating Colombo Model (Avurudu, Poya, Long Weekends)...")
-    print(f"MAE: {stgat_mae:.2f} km/h | MAPE: {stgat_mape:.2f}%")
-    print("💾 Production weights successfully exported to disk for Colombo!")
+    print("\nEvaluating Colombo Model (Avurudu, Poya, Long Weekends)...", flush=True)
+    print(f"MAE: {stgat_mae:.2f} km/h | MAPE: {stgat_mape:.2f}%", flush=True)
+    print("💾 Production weights successfully exported to disk for Colombo!", flush=True)
 
 if __name__ == "__main__":
     main()
