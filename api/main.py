@@ -146,7 +146,7 @@ async def optimize_route(payload: OptimizeRouteRequest):
                 "id": record["id"],
                 "location": [record["lon"], record["lat"]],
                 "delivery": [int(record["weight"])] if record["weight"] else [],
-                "service": 900  # 15 minutes in seconds
+                "service": 180  # Reduced to 3 minutes per drop-off (was 15 mins)
             } for record in records
         ],
         "options": {
@@ -220,10 +220,11 @@ async def optimize_route(payload: OptimizeRouteRequest):
 
     return {
         "rider_id": payload.rider_id,
-        "total_duration_seconds": summary.get("duration", 0),
+        "total_duration_seconds": summary.get("duration", 0) + summary.get("service", 0),
         "total_distance_meters": summary.get("distance", summary.get("cost", 0)),
         "unoptimized_distance_meters": unoptimized_distance,
         "unoptimized_duration_seconds": unoptimized_duration,
+        "unassigned_jobs": summary.get("unassigned", 0),
         "route_sequence": steps,
         "geometry": route.get("geometry")
     }
