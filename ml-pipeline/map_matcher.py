@@ -16,7 +16,7 @@ DB_CONFIG = {
 OSRM_MATCH_URL = "http://localhost:5005/match/v1/car/"
 
 def fetch_all_telemetry():
-    print("📥 Fetching telemetry logs from PostGIS...")
+    print("📥 Fetching telemetry logs from PostGIS (Sri Lanka Simulated)...")
     conn = psycopg2.connect(**DB_CONFIG)
     query = """
         SELECT rider_id, ST_X(location::geometry) as lon, ST_Y(location::geometry) as lat, speed_kmh, timestamp
@@ -26,6 +26,33 @@ def fetch_all_telemetry():
     df = pd.read_sql_query(query, conn)
     conn.close()
     print(f"Loaded {len(df)} total pings.")
+    return df
+
+def fetch_tdrive_telemetry():
+    print("📥 Fetching T-Drive telemetry logs (Beijing Real Data)...")
+    dataset_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "data", "datasets", "taxi_log_2008_by_id"))
+    
+    if not os.path.exists(dataset_dir):
+        raise FileNotFoundError(f"T-Drive folder not found at {dataset_dir}")
+        
+    all_files = [os.path.join(dataset_dir, f) for f in os.listdir(dataset_dir) if f.endswith(".txt")]
+    # Limit to 500 taxis for memory safety, you can remove this limit for the full 15M dataset
+    all_files = all_files[:500] 
+    
+    df_list = []
+    print(f"Reading {len(all_files)} T-Drive taxi files...")
+    for file in tqdm(all_files, desc="Parsing txt files"):
+        try:
+            # T-Drive format: taxi_id, datetime, lon, lat
+            temp_df = pd.read_csv(file, header=None, names=["rider_id", "timestamp", "lon", "lat"])
+            # T-Drive doesn't log speed directly, so we default to 0 and let OSRM calculate it based on time/distance
+            temp_df["speed_kmh"] = 0.0 
+            df_list.append(temp_df)
+        except Exception:
+            pass
+            
+    df = pd.concat(df_list, ignore_index=True)
+    print(f"Loaded {len(df)} total pings from T-Drive.")
     return df
 
 def extract_trips(df):
@@ -130,7 +157,9 @@ def aggregate_and_save(segments_df):
     print(f"Saved {len(aggregated)} unique traffic edge profiles to {out_path}!")
 
 if __name__ == "__main__":
-    df = fetch_all_telemetry()
+    # df = fetch_all_telemetry()      # Uncomment this to use Simulated Colombo Data
+    df = fetch_tdrive_telemetry()     # Using the manually downloaded Beijing T-Drive Data
+    
     trips = extract_trips(df)
     segments = process_map_matching(trips)
     aggregate_and_save(segments)
