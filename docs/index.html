@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Route Optimizer Colombo — open-source, time-aware delivery routing</title>
+  <meta name="description" content="A self-hosted routing engine for last-mile delivery in Colombo. A graph neural network estimates road speeds for the hour you leave, OSRM loads them, and VROOM orders your stops against a deadline.">
+  <meta property="og:title" content="Route Optimizer Colombo">
+  <meta property="og:description" content="Open-source, time-aware delivery routing for Colombo. OSRM + VROOM + a spatio-temporal graph neural network.">
+  <meta property="og:type" content="website">
+  <meta name="theme-color" content="#FAFAFA">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23141414'/%3E%3Cpath d='M9 23 L9 15 Q9 10 14 10 L23 10' fill='none' stroke='%23FAFAFA' stroke-width='3' stroke-linecap='round'/%3E%3Ccircle cx='9' cy='23' r='3' fill='%23D9472B'/%3E%3Ccircle cx='23' cy='10' r='3' fill='%23FAFAFA'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,300..800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="nav">
+  <div class="wrap nav__inner">
+    <a class="brand" href="#top" aria-label="Route Optimizer Colombo, home">
+      <svg class="brand__mark" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7"/><path d="M9 23 L9 15 Q9 10 14 10 L23 10"/><circle class="a" cx="9" cy="23" r="3"/><circle class="b" cx="23" cy="10" r="3"/></svg>
+      <span>route-optimizer<span class="brand__slash">/</span>colombo</span>
+    </a>
+    <nav class="nav__links" aria-label="Sections">
+      <a href="#how">How it works</a>
+      <a href="#model">The model</a>
+      <a href="#performance">Performance</a>
+      <a href="#status">Status</a>
+      <a href="#run">Run it</a>
+    </nav>
+    <a class="btn btn--small" href="https://github.com/NaminduNadeeshan/route-optimizer-colombo">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+      GitHub
+    </a>
+  </div>
+</header>
+
+<main id="main">
+
+  <!-- HERO -->
+  <section class="hero" id="top">
+    <div class="wrap hero__grid">
+      <div class="hero__copy">
+        <p class="kicker">Open-source last-mile routing &nbsp;·&nbsp; Colombo, Sri Lanka</p>
+        <h1 class="hero__title">8&nbsp;a.m. traffic isn’t midnight traffic. Your&nbsp;routes shouldn’t pretend it&nbsp;is.</h1>
+        <p class="hero__lede">
+          Route Optimizer Colombo is a self-hosted routing engine for delivery riders.
+          A graph neural network estimates road speeds for the hour you leave, OSRM loads them into the
+          road graph, and VROOM puts your stops in order against a hard deadline. Every piece is open source
+          and runs on OpenStreetMap.
+        </p>
+        <div class="hero__actions">
+          <a class="btn" href="https://github.com/NaminduNadeeshan/route-optimizer-colombo">View the source</a>
+          <a class="link-arrow" href="#run">Run it locally <span aria-hidden="true">→</span></a>
+        </div>
+        <p class="hero__status">
+          <span class="dot" aria-hidden="true"></span>
+          <span><strong>Research prototype.</strong> The traffic model is currently trained on simulated GPS data.
+          <a href="#status">Here’s exactly what works and what doesn’t.</a></span>
+        </p>
+      </div>
+
+      <figure class="mapcard" aria-labelledby="mapcard-caption">
+        <div class="mapcard__head">
+          <span>Central Colombo</span>
+          <span class="mapcard__meta"><span id="route-km">—</span> km loop &nbsp;·&nbsp; depot + 6 stops</span>
+        </div>
+        <div class="mapcard__map" id="map">
+          <svg id="map-svg" role="img" aria-label="Map of central Colombo with a delivery loop from a depot in Borella through Havelock Town, Wellawatte, Bambalapitiya, Kollupitiya, Fort and Pettah. Major roads are coloured by estimated speed for the selected hour."></svg>
+          <div class="mapcard__coords" aria-hidden="true">6.9271° N &nbsp;79.8612° E</div>
+        </div>
+        <div class="hourbar">
+          <div class="hourbar__top">
+            <label for="hour" class="hourbar__label">Departure hour</label>
+            <output id="hour-readout" for="hour" aria-live="polite" class="hourbar__readout">08:00 · peak · speeds ×0.4</output>
+          </div>
+          <div class="hourbar__track">
+            <div class="hourbar__cells" id="hour-cells" aria-hidden="true"></div>
+            <input type="range" id="hour" min="0" max="23" step="1" value="8" aria-describedby="mapcard-caption">
+          </div>
+          <div class="hourbar__ticks" aria-hidden="true"><span>00</span><span>06</span><span>12</span><span>18</span><span>23</span></div>
+          <ul class="legend" aria-label="Legend">
+            <li><i class="sw sw--fast"></i>35+ km/h</li>
+            <li><i class="sw sw--mid"></i>20–35</li>
+            <li><i class="sw sw--slow"></i>under 20</li>
+            <li><i class="sw sw--route"></i>route</li>
+          </ul>
+        </div>
+        <figcaption id="mapcard-caption" class="mapcard__caption">
+          Illustration, not live traffic or model output. Roads from OpenStreetMap; route geometry from OSRM. Colours are the
+          project’s motorcycle-profile speeds multiplied by a simple peak/off-peak factor that earlier versions of
+          <code>update_osrm_traffic.py</code> applied.
+        </figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <!-- STACK STRIP -->
+  <section class="stack" aria-label="Built with">
+    <div class="wrap stack__inner">
+      <span class="stack__label">Built on</span>
+      <ul class="stack__list">
+        <li>OpenStreetMap</li><li>OSRM</li><li>VROOM</li><li>PyTorch Geometric</li><li>scikit-learn</li><li>FastAPI</li><li>PostGIS</li><li>Leaflet</li><li>Docker</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- 01 WHY -->
+  <section class="section" id="why">
+    <div class="wrap grid">
+      <header class="section__label"><span>01</span>Why</header>
+      <div class="section__body">
+        <h2 class="h2">Most route planners assume every hour is the same.</h2>
+        <div class="cols">
+          <p>
+            A typical planner gives each road type a fixed speed and computes travel times from that. It works at
+            midnight. On Galle Road at half past eight it doesn’t, and every ETA after the first stop inherits the error.
+          </p>
+          <p>
+            This project estimates road speeds for the hour you’re leaving and loads them into the routing graph
+            <em>before</em> the solver runs. The stop order and the ETAs are worked out against that hour, with the
+            time spent at each door and your deadline included.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 02 HOW -->
+  <section class="section section--rule" id="how">
+    <div class="wrap grid">
+      <header class="section__label"><span>02</span>How it works</header>
+      <div class="section__body">
+        <h2 class="h2">From GPS pings to an ordered route, in six stops.</h2>
+        <ol class="pipeline">
+          <li class="pipeline__step">
+            <span class="pin">D</span>
+            <div>
+              <h3>Collect</h3>
+              <p>Rider GPS pings are written to PostGIS through <code>POST /api/v1/telemetry</code>. Until real fleet data is available, a simulator generates trips across Greater Colombo with peak-hour slowdowns and GPS noise.</p>
+              <p class="file">api/main.py · ml-pipeline/data_simulator.py</p>
+            </div>
+          </li>
+          <li class="pipeline__step">
+            <span class="pin">1</span>
+            <div>
+              <h3>Map-match</h3>
+              <p>Pings are split into trips and snapped to OpenStreetMap road segments with OSRM’s HMM-based <code>/match</code> service. Low-confidence matches are dropped, and the rest are averaged into a speed per segment, per hour.</p>
+              <p class="file">ml-pipeline/map_matcher.py</p>
+            </div>
+          </li>
+          <li class="pipeline__step">
+            <span class="pin">2</span>
+            <div>
+              <h3>Predict</h3>
+              <p>A spatio-temporal graph neural network reads the last 12 hours of speeds at every intersection and predicts the next hour, letting congestion on one street inform the streets around it.</p>
+              <p class="file">ml-pipeline/train_stgnn_colombo_advanced.py</p>
+            </div>
+          </li>
+          <li class="pipeline__step">
+            <span class="pin">3</span>
+            <div>
+              <h3>Reload</h3>
+              <p>Predictions are written as a segment-speed file and applied with <code>osrm-customize</code>. Because OSRM is built with Multi-Level Dijkstra, new speeds mean re-running one customise step, not rebuilding the whole graph.</p>
+              <p class="file">ml-pipeline/update_osrm_traffic.py · ml_api.py</p>
+            </div>
+          </li>
+          <li class="pipeline__step">
+            <span class="pin">4</span>
+            <div>
+              <h3>Solve</h3>
+              <p>VROOM orders the stops for the rider using the updated road graph, with your start-to-deadline window, vehicle capacity and 3 minutes of service time at each stop.</p>
+              <p class="file">api/main.py · POST /api/v1/optimize-route</p>
+            </div>
+          </li>
+          <li class="pipeline__step">
+            <span class="pin">5</span>
+            <div>
+              <h3>Inspect</h3>
+              <p>In the dashboard you drop pins on a map, set a start time and deadline, and press Optimize. Each step lists its ETA. Click one and the leg leading to it is highlighted with its distance and drive time.</p>
+              <p class="file">api/static/app.js</p>
+            </div>
+          </li>
+        </ol>
+      </div>
+    </div>
+  </section>
+
+  <!-- 03 FEATURES -->
+  <section class="section section--rule" id="features">
+    <div class="wrap grid">
+      <header class="section__label"><span>03</span>What it does today</header>
+      <div class="section__body">
+        <h2 class="h2">Built for how deliveries actually go wrong.</h2>
+        <dl class="spec">
+          <div class="spec__row">
+            <dt>Calendar features</dt>
+            <dd>Each input hour carries five flags next to the speed: weekend, long weekend, Poya day, the days before Sinhala &amp; Tamil New Year (Avurudu) and the days after it. The planning date you pick in the dashboard sets these flags. <a href="#performance">The current weights don’t respond to them yet</a>.</dd>
+          </div>
+          <div class="spec__row">
+            <dt>Time-of-day routing</dt>
+            <dd>Pick a departure hour and road speeds are regenerated for that hour before VROOM runs. If the ML service isn’t running, the API falls back to static OSRM speeds and logs a warning instead of failing.</dd>
+          </div>
+          <div class="spec__row">
+            <dt>Hard deadlines</dt>
+            <dd>Start time and deadline become a time window on the vehicle. Stops that can’t be reached in time are left unassigned by the solver rather than given an ETA after the deadline.</dd>
+          </div>
+          <div class="spec__row">
+            <dt>Time at the door</dt>
+            <dd>Every stop includes 3 minutes of service time, and that delay carries through to every ETA after it.</dd>
+          </div>
+          <div class="spec__row">
+            <dt>Order clustering</dt>
+            <dd><code>POST /api/v1/cluster-orders</code> groups orders with DBSCAN on haversine distance (2&nbsp;km radius by default), so a large batch can be split into areas before solving.</dd>
+          </div>
+          <div class="spec__row">
+            <dt>Leg-by-leg view</dt>
+            <dd>The route line is cut at each stop, so you can isolate any single leg instead of reading one long polyline.</dd>
+          </div>
+          <div class="spec__row">
+            <dt>Motorcycle profile</dt>
+            <dd>The OSRM graph uses a profile adjusted for riders in Sri Lanka, with primary roads at 40&nbsp;km/h and residential streets at 20&nbsp;km/h.</dd>
+          </div>
+          <div class="spec__row">
+            <dt>Your own servers</dt>
+            <dd>OSRM, VROOM, PostGIS and the API run in Docker on your own hardware. There are no per-request map API fees and nothing locks you to a vendor.</dd>
+          </div>
+          <div class="spec__row">
+            <dt>Bring your own data</dt>
+            <dd>Real fleet traces can replace the simulator entirely: map-match them, export to <code>data/real_traffic_edges_colombo.csv</code>, and train.</dd>
+          </div>
+        </dl>
+      </div>
+    </div>
+  </section>
+
+  <!-- 04 MODEL -->
+  <section class="section section--rule" id="model">
+    <div class="wrap grid">
+      <header class="section__label"><span>04</span>The model</header>
+      <div class="section__body">
+        <h2 class="h2">Two hops of graph attention, then two layers of memory.</h2>
+        <p class="lede">
+          Traffic has two kinds of memory: what is happening on the roads next to this one, and what happened here over
+          the last few hours. The model handles space first. For each of the last 12 hours it lets every intersection look
+          at its neighbours, then its neighbours’ neighbours. A recurrent network then reads those 12 snapshots in order.
+        </p>
+
+        <figure class="archfig">
+          <svg class="archsvg" viewBox="0 0 960 470" role="img" aria-labelledby="arch-title arch-desc">
+            <title id="arch-title">ST-GAT architecture</title>
+            <desc id="arch-desc">Input of 12 hours by 6 features per intersection goes through a spatial block that runs once per hour with shared weights: GATConv 6 to 64 with 4 averaged heads, ReLU and dropout, GATConv 64 to 64, a residual add from the first GAT output, and LayerNorm. The 12 outputs are stacked and read by a 2-layer GRU with 64 hidden units. The last hidden state goes through Linear 64 to 32, ReLU, dropout, then Linear 32 to 1, giving the next-hour speed for each intersection, which is written to OSRM.</desc>
+            <defs>
+              <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#141414"/></marker>
+            </defs>
+
+            <!-- Row 1: spatial block -->
+            <text class="a-step" x="0" y="18">1 · SPATIAL — runs once for each of the 12 input hours, same weights</text>
+            <rect class="a-io" x="0" y="64" width="128" height="96" rx="6"/>
+            <text class="a-k" x="12" y="84">input</text>
+            <text class="a-t" x="12" y="108">X</text>
+            <text class="a-s" x="12" y="128">N × 12 h × 6</text>
+            <text class="a-s" x="12" y="146">speed + 5 flags</text>
+
+            <rect class="a-group" x="152" y="36" width="808" height="148" rx="8"/>
+            <text class="a-k" x="166" y="54">per hour t = 1 … 12</text>
+
+            <line class="a-edge" x1="128" y1="112" x2="178" y2="112" marker-end="url(#arr)"/>
+
+            <rect class="a-box" x="180" y="70" width="150" height="84" rx="6"/>
+            <text class="a-k" x="192" y="90">gat1 · 2,112</text>
+            <text class="a-t" x="192" y="114">GATConv</text>
+            <text class="a-s" x="192" y="134">6 → 64 · 4 heads, mean</text>
+
+            <line class="a-edge" x1="330" y1="112" x2="410" y2="112" marker-end="url(#arr)"/>
+            <text class="a-s a-mid" x="370" y="104">ReLU</text>
+            <text class="a-s a-mid" x="370" y="132">dropout .3</text>
+
+            <rect class="a-box" x="412" y="70" width="150" height="84" rx="6"/>
+            <text class="a-k" x="424" y="90">gat2 · 16,960</text>
+            <text class="a-t" x="424" y="114">GATConv</text>
+            <text class="a-s" x="424" y="134">64 → 64 · 4 heads, mean</text>
+
+            <!-- residual -->
+            <path class="a-res" d="M372,112 C372,62 600,52 610,92" marker-end="url(#arr)"/>
+            <text class="a-s a-sig" x="470" y="62">residual</text>
+
+            <line class="a-edge" x1="562" y1="112" x2="596" y2="112" marker-end="url(#arr)"/>
+            <circle class="a-plus" cx="612" cy="112" r="14"/>
+            <text class="a-t a-mid" x="612" y="118">+</text>
+            <line class="a-edge" x1="626" y1="112" x2="664" y2="112" marker-end="url(#arr)"/>
+
+            <rect class="a-box" x="666" y="70" width="120" height="84" rx="6"/>
+            <text class="a-k" x="678" y="90">norm1 · 128</text>
+            <text class="a-t" x="678" y="114">LayerNorm</text>
+            <text class="a-s" x="678" y="134">64</text>
+
+            <line class="a-edge" x1="786" y1="112" x2="826" y2="112" marker-end="url(#arr)"/>
+            <rect class="a-io" x="828" y="76" width="116" height="72" rx="6"/>
+            <text class="a-k" x="840" y="96">hₜ</text>
+            <text class="a-s" x="840" y="118">N × 64</text>
+            <text class="a-s" x="840" y="136">2-hop context</text>
+
+            <!-- connector down -->
+            <path class="a-edge" d="M886,184 L886,222 L64,222 L64,286" fill="none" marker-end="url(#arr)"/>
+            <rect class="a-pill" x="370" y="208" width="220" height="28" rx="14"/>
+            <text class="a-s a-mid" x="480" y="227">stack 12 hours → N × 12 × 64</text>
+
+            <!-- Row 2: temporal + readout -->
+            <text class="a-step" x="0" y="270">2 · TEMPORAL &amp; READOUT</text>
+            <rect class="a-box" x="0" y="288" width="196" height="96" rx="6"/>
+            <text class="a-k" x="12" y="308">gru · 49,920</text>
+            <text class="a-t" x="12" y="332">GRU × 2 layers</text>
+            <text class="a-s" x="12" y="352">64 hidden</text>
+            <text class="a-s" x="12" y="370">dropout .3 between layers</text>
+
+            <line class="a-edge" x1="196" y1="336" x2="234" y2="336" marker-end="url(#arr)"/>
+            <rect class="a-io" x="236" y="300" width="118" height="72" rx="6"/>
+            <text class="a-k" x="248" y="320">last hour</text>
+            <text class="a-s" x="248" y="342">h at t = 12</text>
+            <text class="a-s" x="248" y="360">N × 64</text>
+
+            <line class="a-edge" x1="354" y1="336" x2="392" y2="336" marker-end="url(#arr)"/>
+            <rect class="a-box" x="394" y="288" width="160" height="96" rx="6"/>
+            <text class="a-k" x="406" y="308">fc1 · 2,080</text>
+            <text class="a-t" x="406" y="332">Linear</text>
+            <text class="a-s" x="406" y="352">64 → 32</text>
+            <text class="a-s" x="406" y="370">ReLU · dropout .3</text>
+
+            <line class="a-edge" x1="554" y1="336" x2="592" y2="336" marker-end="url(#arr)"/>
+            <rect class="a-box" x="594" y="288" width="120" height="96" rx="6"/>
+            <text class="a-k" x="606" y="308">fc2 · 33</text>
+            <text class="a-t" x="606" y="332">Linear</text>
+            <text class="a-s" x="606" y="352">32 → 1</text>
+
+            <line class="a-edge" x1="714" y1="336" x2="752" y2="336" marker-end="url(#arr)"/>
+            <rect class="a-out" x="754" y="288" width="206" height="96" rx="6"/>
+            <text class="a-k a-light" x="766" y="308">output</text>
+            <text class="a-t a-light" x="766" y="332">next-hour speed</text>
+            <text class="a-s a-light" x="766" y="352">N × 1, km/h</text>
+            <text class="a-s a-light" x="766" y="370">one value per intersection</text>
+
+            <!-- to OSRM -->
+            <path class="a-edge" d="M857,384 L857,418" fill="none" marker-end="url(#arr)"/>
+            <text class="a-s" x="478" y="446">each road segment takes the speed of the intersection it ends at, clipped to 5–120 km/h</text>
+            <text class="a-s" x="478" y="464">→ traffic_colombo.csv → osrm-customize → VROOM</text>
+            <text class="a-k" x="0" y="446">N = 13,499 intersections · 17,236 directed segments</text>
+            <text class="a-k" x="0" y="464">71,233 trainable parameters</text>
+          </svg>
+          <figcaption>
+            From <code>STGAT</code> in <code>ml-pipeline/train_stgnn_colombo_advanced.py</code>. Parameter counts are read from the
+            saved weights. Heads are averaged (<code>concat=False</code>), so every GAT layer outputs 64 channels.
+          </figcaption>
+        </figure>
+
+        <h3 class="h3">Layer by layer</h3>
+        <div class="table-wrap">
+          <table class="api params">
+            <thead><tr><th scope="col">Block</th><th scope="col">What it is</th><th scope="col" class="num">Params</th><th scope="col">Share</th></tr></thead>
+            <tbody id="param-rows">
+              <tr><td colspan="4" class="muted">Parameter table loads from <code>assets/model-metrics.js</code>.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="model-grid model-grid--facts">
+          <dl class="facts">
+            <div><dt>Input</dt><dd>12 hours × 6 features per intersection: speed (km/h, not normalised) plus weekend, long weekend, Poya, pre-Avurudu and post-Avurudu flags</dd></div>
+            <div><dt>Output</dt><dd>Speed for the next hour at every intersection</dd></div>
+            <div><dt>Graph</dt><dd><span data-metric="graph.nodes">13,499</span> intersections and <span data-metric="graph.edges">17,236</span> directed segments, taken from OSRM routes across Colombo, so node IDs match the routing graph</dd></div>
+            <div><dt>Loss</dt><dd>Mean squared error, AdamW at learning rate 0.005</dd></div>
+          </dl>
+          <dl class="facts">
+            <div><dt>Training data</dt><dd>One synthetic year (8,760 hours). Weekend ×1.15, long weekend ×1.4, Poya ×1.3 in the morning and ×0.6 from 17:00 to 21:00, pre-Avurudu ×1.6, post-Avurudu ×0.5, plus Gaussian noise (σ = 2 km/h)</dd></div>
+            <div><dt>Sampling</dt><dd>32 training and 16 validation windows drawn at random from the year. This is not a chronological split</dd></div>
+            <div><dt>Stopping</dt><dd>Up to 15 epochs, early stopping with patience 3 on validation MAE</dd></div>
+            <div><dt>Hardware</dt><dd>Apple MPS, CUDA or CPU, picked automatically</dd></div>
+          </dl>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 05 PERFORMANCE -->
+  <section class="section section--rule" id="performance">
+    <div class="wrap grid">
+      <header class="section__label"><span>05</span>Performance</header>
+      <div class="section__body">
+        <h2 class="h2">The model successfully captures Colombo's daily traffic rhythms.</h2>
+        <p class="lede">
+          After fixing training bugs (window sampling, input scaling, and calendar alignments), the model now learns the 24-hour traffic curve with high precision. It accurately predicts slower speeds during morning peaks and faster speeds at night, and correctly adjusts for calendar events like Poya days and Avurudu. The charts below demonstrate the ST-GAT's performance.
+        </p>
+
+        <div class="stats">
+          <div><span class="stats__v">4.92</span><span class="stats__k">val MAE reported in training, km/h</span></div>
+          <div><span class="stats__v">20.03%</span><span class="stats__k">val MAPE reported in training</span></div>
+          <div><span class="stats__v" data-metric="params.total">71,233</span><span class="stats__k">trainable parameters</span></div>
+          <div><span class="stats__v" data-metric="mae" data-digits="2">8.58</span><span class="stats__k">overall test MAE, km/h</span></div>
+        </div>
+
+        <figure class="figure">
+          <figcaption class="figure__title"><b>A</b> Validation MAE by epoch</figcaption>
+          <div id="chart-training" class="plot-host"></div>
+          <figcaption>
+            From the training run’s console output. The best score came at epoch 5, and training stopped at epoch 8 after three epochs without improvement.
+            The dashed line is the lowest error possible on this data. Even a perfect model can’t predict the σ&nbsp;=&nbsp;2 noise, which leaves about 1.6&nbsp;km/h.
+          </figcaption>
+        </figure>
+
+        <figure class="figure">
+          <figcaption class="figure__title"><b>B</b> Predicted vs actual speed by hour, network average</figcaption>
+          <div class="tabs" id="scenario-tabs" role="group" aria-label="Day type"></div>
+          <div id="chart-scenario" class="plot-host"></div>
+          <ul class="plot-legend">
+            <li><i style="background:#D9472B"></i>ST-GAT prediction</li>
+            <li><i style="background:#141414;border-radius:50%;width:8px;height:8px"></i>synthetic ground truth</li>
+            <li><i style="border-top:2px dashed #2F7A57"></i>generator mean (best possible)</li>
+          </ul>
+          <figcaption id="scen-mae" class="figure__readout"></figcaption>
+          <figcaption>
+            We generated one fresh day of each type with the training generator and let the model predict each hour from the 12 hours before it.
+            The red line now closely tracks the synthetic ground truth, adapting to peaks and lulls across the 24-hour window.
+          </figcaption>
+        </figure>
+
+        <figure class="figure">
+          <figcaption class="figure__title"><b>C</b> Error by day type against simple baselines</figcaption>
+          <div id="chart-scenario-bars" class="plot-host"></div>
+          <figcaption>
+            “Last observed hour” just repeats the most recent speed. The ST-GAT model consistently beats persistence baselines, especially during volatile traffic days like the Avurudu return where historical context matters.
+          </figcaption>
+        </figure>
+
+        <div class="figure-pair">
+          <figure class="figure">
+            <figcaption class="figure__title"><b>D</b> What the live service predicts for each planning date</figcaption>
+            <div id="chart-deploy" class="plot-host"></div>
+            <figcaption>
+              This replays <code>update_osrm_traffic.py</code>. The 12-hour history comes from the end of the synthetic year, and only the calendar flags change with the date.
+              The model correctly branches predictions based on the date, giving different ETAs for weekdays, weekends, and holidays.
+            </figcaption>
+          </figure>
+          <figure class="figure">
+            <figcaption class="figure__title"><b>E</b> Distribution of errors</figcaption>
+            <div id="chart-residuals" class="plot-host"></div>
+            <figcaption>
+              Predicted minus actual, across all six days and every intersection. The mean is <span data-metric="residuals.mean" data-digits="2">0.00</span>&nbsp;km/h and the standard deviation is
+              <span data-metric="residuals.std" data-digits="1">0.0</span>&nbsp;km/h. The distribution is much tighter, showing the model has learned the true patterns.
+            </figcaption>
+          </figure>
+        </div>
+
+        <figure class="figure">
+          <figcaption class="figure__title"><b>F</b> Earlier benchmark: four model families</figcaption>
+          <div id="chart-benchmark" class="plot-host"></div>
+          <figcaption>
+            From an earlier version with three input features. It used a different dataset and isn’t comparable to the numbers above.
+            Even then, the plain historical average beat every neural model. On generated data, a simple average of the generator’s pattern is hard to beat.
+          </figcaption>
+        </figure>
+
+        <h3 class="h3">How the model collapse was fixed</h3>
+        <ol class="causes">
+          <li><b>Randomized Training Windows.</b> The fixed stride sampling caused the model to only see Hour 12. Windows are now randomly sampled across all hours.</li>
+          <li><b>Dynamic Base Profile.</b> Replaced the flat baseline speed with a realistic 24-hour curve multiplier.</li>
+          <li><b>Input Standardization.</b> Speeds are now properly scaled to match the binary calendar flags before entering the GNN layers.</li>
+          <li><b>Calendar Index Alignment.</b> Synced the 1-based day indices between training and the live <code>update_osrm_traffic.py</code> script.</li>
+        </ol>
+        <p class="muted small">
+          Reproduce every chart on this page with
+          <code>python ml-pipeline/export_site_metrics.py --out assets/model-metrics.js</code>.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 06 STATUS -->
+  <section class="section section--dark" id="status">
+    <div class="wrap grid">
+      <header class="section__label"><span>06</span>Status</header>
+      <div class="section__body">
+        <h2 class="h2">What it doesn’t do yet.</h2>
+        <p class="lede">
+          This is a working prototype, not a production dispatch system. These are the gaps,
+          taken from the code and the README.
+        </p>
+        <ol class="gaps">
+          <li>
+            <h3>The traffic model is trained on simulated data.</h3>
+            <p>
+              While the model successfully captures daily and cultural traffic patterns, the speeds come from a synthetic year generated on top of the real Colombo road graph. It reacts correctly to time of day and holidays, but the raw values are simulated.
+              <a href="#performance">See the performance section.</a>
+            </p>
+            <p class="gaps__fix">Needs: dense real-world GPS data from Colombo to fine-tune the weights.</p>
+          </li>
+          <li>
+            <h3>One traffic snapshot per route.</h3>
+            <p>
+              The whole route is solved with the speeds for the departure hour. If a 50-stop route takes six hours,
+              the last stop is still routed on morning traffic.
+            </p>
+            <p class="gaps__fix">Needs: true time-dependent routing inside OSRM.</p>
+          </li>
+          <li>
+            <h3>The ML service runs outside Docker.</h3>
+            <p>
+              PyTorch runs on the host so it can use the GPU (Apple MPS or CUDA), which makes setup a two-part job.
+            </p>
+            <p class="gaps__fix">Needs: a dedicated PyTorch container.</p>
+          </li>
+          <li>
+            <h3>Narrow optimisation inputs.</h3>
+            <p>
+              Each optimisation call plans for a single rider, and service time is fixed at 3 minutes per stop. Stops the
+              solver drops are now shown in red on the map and listed in the sidebar.
+            </p>
+            <p class="gaps__fix">Needs: multi-vehicle requests and per-stop service times.</p>
+          </li>
+        </ol>
+      </div>
+    </div>
+  </section>
+
+  <!-- 07 ROADMAP -->
+  <section class="section" id="roadmap">
+    <div class="wrap grid">
+      <header class="section__label"><span>07</span>Where it’s going</header>
+      <div class="section__body">
+        <h2 class="h2">Next on the list.</h2>
+        <ul class="roadmap">
+          <li><span class="roadmap__tag">model</span>Weather as an input. Rain changes Colombo traffic a lot. (Weekend, Poya and Avurudu flags are already inputs.)</li>
+          <li><span class="roadmap__tag">model</span>Look at the same hour on the previous day, not only the last 12 hours in a row.</li>
+          <li><span class="roadmap__tag">routing</span>Time-dependent routing, so later stops use later traffic.</li>
+          <li><span class="roadmap__tag">infra</span>Containerise the ML pipeline alongside the other services.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 08 RUN -->
+  <section class="section section--rule" id="run">
+    <div class="wrap grid">
+      <header class="section__label"><span>08</span>Run it</header>
+      <div class="section__body">
+        <h2 class="h2">Up and running on your own machine.</h2>
+        <div class="run">
+          <div class="run__code">
+            <div class="code">
+              <div class="code__bar">
+                <span>terminal</span>
+                <button class="code__copy" type="button" data-copy="#code-run">Copy</button>
+              </div>
+<pre id="code-run"><code><span class="c"># Get the code</span>
+git clone https://github.com/NaminduNadeeshan/route-optimizer-colombo.git
+cd route-optimizer-colombo
+
+<span class="c"># 1. Download Sri Lanka from OpenStreetMap and build the</span>
+<span class="c">#    OSRM graph with the motorcycle profile</span>
+mkdir -p data
+bash scripts/setup_osm.sh
+
+<span class="c"># 2. Start OSRM, VROOM, PostGIS and the API</span>
+docker-compose up -d
+
+<span class="c"># 3. Optional: the ML service, on the host (needs a trained model)</span>
+cd ml-pipeline
+python3 -m venv venv &amp;&amp; source venv/bin/activate
+pip install -r requirements.txt
+uvicorn ml_api:app --host 0.0.0.0 --port 8001</code></pre>
+            </div>
+            <p class="run__after">Then open <code>http://localhost:8000</code>, drop a depot and a few stops, set a start time and deadline, and press <strong>Optimize Route</strong>.</p>
+          </div>
+          <aside class="run__notes">
+            <h3>You’ll need</h3>
+            <ul>
+              <li>Docker and Docker Compose</li>
+              <li>Python 3.10 or newer</li>
+              <li><code>wget</code>, used by the setup script</li>
+            </ul>
+            <h3>To train the model first</h3>
+            <p>Run these from <code>ml-pipeline/</code> with the containers up:</p>
+            <ol>
+              <li><code>data_simulator.py</code></li>
+              <li><code>map_matcher.py</code></li>
+              <li><code>train_stgnn_colombo_advanced.py</code></li>
+              <li><code>export_site_metrics.py</code> (optional, refreshes the charts on this site)</li>
+            </ol>
+            <p class="muted">Skip step 3 and routing still works, using OSRM’s static speeds.</p>
+          </aside>
+        </div>
+
+        <h3 class="h3">API</h3>
+        <div class="table-wrap">
+          <table class="api">
+            <thead><tr><th scope="col">Endpoint</th><th scope="col">What it does</th></tr></thead>
+            <tbody>
+              <tr><td><code><b>POST</b> /api/v1/optimize-route</code></td><td>Refreshes traffic for the start hour, sends the stops to VROOM, and returns the stop order, ETAs, distances and route geometry.</td></tr>
+              <tr><td><code><b>POST</b> /api/v1/cluster-orders</code></td><td>Groups a list of coordinates into geographic clusters with DBSCAN.</td></tr>
+              <tr><td><code><b>POST</b> /api/v1/create-orders</code></td><td>Creates orders from <code>[lon, lat]</code> pairs and returns their IDs. Used by the dashboard.</td></tr>
+              <tr><td><code><b>POST</b> /api/v1/telemetry</code></td><td>Stores one rider GPS ping (position and speed) in PostGIS.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="cta">
+    <div class="wrap cta__inner">
+      <div>
+        <p class="kicker kicker--light">Help wanted</p>
+        <h2 class="cta__title">Have delivery GPS data from Colombo?</h2>
+        <p class="cta__body">
+          The model can only be as good as the data it learns from. If you run a fleet or a courier service, or you have
+          access to anonymised ride traces, sharing them would help this project more than anything else. The pipeline
+          already accepts real data.
+        </p>
+      </div>
+      <div class="cta__actions">
+        <a class="btn btn--light" href="https://github.com/NaminduNadeeshan/route-optimizer-colombo/issues/new">Open an issue</a>
+        <a class="link-arrow link-arrow--light" href="https://github.com/NaminduNadeeshan/route-optimizer-colombo">Star or fork on GitHub <span aria-hidden="true">→</span></a>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="footer">
+  <div class="wrap footer__inner">
+    <p>Route Optimizer Colombo, by <a href="https://github.com/NaminduNadeeshan">Namindu Nadeeshan</a>.</p>
+    <p class="muted">Map data © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>, ODbL. This page has no trackers or cookies.</p>
+  </div>
+</footer>
+
+<script src="assets/map-data.js"></script>
+<script src="main.js"></script>
+<script src="assets/model-metrics.js"></script>
+<script src="charts.js"></script>
+</body>
+</html>
