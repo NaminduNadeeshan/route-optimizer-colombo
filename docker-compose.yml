@@ -1,48 +1,61 @@
+version: '3.8'
+
 services:
-  # OSRM Backend
-  osrm:
-    image: osrm/osrm-backend:latest
-    container_name: route_osrm
-    restart: always
-    ports:
-      - "5005:5000"
-    volumes:
-      - ./data:/data
-    # Use Multi-Level Dijkstra (MLD) algorithm for fast routing
-    command: "osrm-routed --algorithm mld /data/Beijing.osrm"
-
-  # VROOM Backend (Optimization Solver)
-  vroom:
-    image: ghcr.io/vroom-project/vroom-docker:latest
-    container_name: route_vroom
-    restart: always
-    network_mode: "service:osrm"
-    environment:
-      - VROOM_ROUTER=osrm
-    depends_on:
-      - osrm
-
-  # PostgreSQL with PostGIS
+  # Database for storing dynamic orders and geometry
   db:
     image: postgis/postgis:15-3.3
     container_name: route_db
-    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: routing_db
     ports:
       - "5433:5432"
-    environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=routing_db
     volumes:
       - pgdata:/var/lib/postgresql/data
-      - ./db-init:/docker-entrypoint-initdb.d
 
-  # FastAPI Backend
+  # OSRM Backend - BEIJING
+  osrm_beijing:
+    image: osrm/osrm-backend
+    container_name: route_osrm_beijing
+    volumes:
+      - ./data:/data
+    command: "osrm-routed --algorithm mld /data/Beijing.osrm"
+
+  # OSRM Backend - COLOMBO
+  osrm_colombo:
+    image: osrm/osrm-backend
+    container_name: route_osrm_colombo
+    volumes:
+      - ./data:/data
+    command: "osrm-routed --algorithm mld /data/sri-lanka-latest.osrm"
+
+  # VROOM Backend - BEIJING
+  vroom_beijing:
+    image: ghcr.io/vroom-project/vroom-docker:latest
+    container_name: route_vroom_beijing
+    environment:
+      - VROOM_ROUTER=osrm
+    volumes:
+      - ./vroom-beijing-conf:/conf
+    depends_on:
+      - osrm_beijing
+
+  # VROOM Backend - COLOMBO
+  vroom_colombo:
+    image: ghcr.io/vroom-project/vroom-docker:latest
+    container_name: route_vroom_colombo
+    environment:
+      - VROOM_ROUTER=osrm
+    volumes:
+      - ./vroom-colombo-conf:/conf
+    depends_on:
+      - osrm_colombo
+
+  # FastAPI Microservice (Host Bridge and UI)
   api:
-    platform: linux/amd64
     build: ./api
     container_name: route_api
-    restart: always
     ports:
       - "8000:8000"
     volumes:
@@ -50,13 +63,15 @@ services:
     environment:
       - DB_USER=postgres
       - DB_PASS=postgres
-      - DB_HOST=route_db
-      - DB_PORT=5432
       - DB_NAME=routing_db
-      - VROOM_URL=http://osrm:3000
+      - DB_HOST=db
+      - DB_PORT=5432
+      - VROOM_BEIJING_URL=http://vroom_beijing:3000
+      - VROOM_COLOMBO_URL=http://vroom_colombo:3000
     depends_on:
       - db
-      - vroom
+      - vroom_beijing
+      - vroom_colombo
 
 volumes:
   pgdata:

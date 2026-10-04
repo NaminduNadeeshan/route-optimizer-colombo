@@ -40,6 +40,8 @@ class OptimizeRouteRequest(BaseModel):
     order_ids: List[int]
     max_duration_seconds: Optional[int] = 86400  # Default 24 hours
     start_hour: Optional[int] = 9
+    planning_date: Optional[str] = None
+    city: Optional[str] = "beijing"
 
 # --- Connection Pool ---
 db_pool = None
@@ -102,15 +104,18 @@ async def optimize_route(payload: OptimizeRouteRequest):
     # Trigger the PyTorch ML pipeline running natively on the Mac Host
     try:
         async with httpx.AsyncClient() as client:
-            print(f"Requesting ML Traffic generation for {payload.start_hour}:00...")
-            await client.post(
-                f"http://host.docker.internal:8001/update-traffic/{payload.start_hour}", 
-                timeout=30.0
-            )
+            print(f"Requesting ML Traffic generation for {payload.city} at {payload.start_hour}:00, Date: {payload.planning_date}...")
+            url = f"http://host.docker.internal:8001/update-traffic/{payload.city}/{payload.start_hour}"
+            if payload.planning_date:
+                url += f"?date={payload.planning_date}"
+            await client.post(url, timeout=30.0)
     except httpx.RequestError as e:
         print(f"Warning: ML Bridge API not reachable. Using static OSRM traffic. ({e})")
     except httpx.HTTPStatusError as e:
         print(f"Warning: ML Bridge API failed. {e.response.text}")
+        
+    # Dynamic VROOM Selection
+    vroom_url = os.getenv("VROOM_COLOMBO_URL", "http://vroom_colombo:3000") if payload.city == 'colombo' else os.getenv("VROOM_BEIJING_URL", "http://vroom_beijing:3000")
 
     # 1. Fetch order coordinates and weights from PostGIS
     query = """
@@ -141,7 +146,7 @@ async def optimize_route(payload: OptimizeRouteRequest):
                 "id": record["id"],
                 "location": [record["lon"], record["lat"]],
                 "delivery": [int(record["weight"])] if record["weight"] else [],
-                "service": 900  # 15 minutes in seconds
+                "service": 180  # Reduced to 3 minutes per drop-off (was 15 mins)
             } for record in records
         ],
         "options": {
@@ -152,7 +157,7 @@ async def optimize_route(payload: OptimizeRouteRequest):
     # 3. Make async HTTP request to local VROOM solver
     async with httpx.AsyncClient() as client:
         try:
-            response = await client.post(VROOM_URL, json=vroom_payload, timeout=60.0)
+            response = await client.post(vroom_url, json=vroom_payload, timeout=60.0)
             response.raise_for_status()
             vroom_data = response.json()
         except httpx.HTTPStatusError as e:
@@ -184,10 +189,45 @@ async def optimize_route(payload: OptimizeRouteRequest):
     async with db_pool.acquire() as connection:
         await connection.execute(update_query, payload.rider_id, payload.order_ids)
 
+    # 6. Fetch Unoptimized Distance / Duration via OSRM directly
+    osrm_host = "route_osrm_colombo:5000" if payload.city == 'colombo' else "route_osrm_beijing:5000"
+    
+    # Construct sequence: Depot -> Job 1 -> Job 2 -> ... -> Depot (in original order)
+    coords = [f"{payload.depot_location[0]},{payload.depot_location[1]}"]
+    records_by_id = {r['id']: r for r in records}
+    
+    for oid in payload.order_ids:
+        if oid in records_by_id:
+            coords.append(f"{records_by_id[oid]['lon']},{records_by_id[oid]['lat']}")
+            
+    coords.append(f"{payload.depot_location[0]},{payload.depot_location[1]}")
+    
+    osrm_url = f"http://{osrm_host}/route/v1/driving/{';'.join(coords)}?overview=false"
+    
+    unoptimized_distance = 0
+    unoptimized_duration = 0
+    try:
+        async with httpx.AsyncClient() as client:
+            osrm_resp = await client.get(osrm_url, timeout=10.0)
+            if osrm_resp.status_code == 200:
+                osrm_data = osrm_resp.json()
+                if osrm_data.get("routes"):
+                    unoptimized_distance = osrm_data["routes"][0].get("distance", 0)
+                    # Add 15 mins (900 seconds) of service time per job to match VROOM's duration logic
+                    unoptimized_duration = osrm_data["routes"][0].get("duration", 0) + (900 * len(payload.order_ids))
+    except Exception as e:
+        print(f"Failed to fetch unoptimized baseline: {e}")
+
     return {
         "rider_id": payload.rider_id,
-        "total_duration_seconds": summary.get("duration", 0),
+        "total_duration_seconds": summary.get("duration", 0) + summary.get("service", 0),
+        "driving_duration_seconds": summary.get("duration", 0),
+        "service_duration_seconds": summary.get("service", 0),
         "total_distance_meters": summary.get("distance", summary.get("cost", 0)),
+        "unoptimized_distance_meters": unoptimized_distance,
+        "unoptimized_duration_seconds": unoptimized_duration,
+        "unassigned_jobs": summary.get("unassigned", 0),
+        "unassigned_details": vroom_data.get("unassigned", []),
         "route_sequence": steps,
         "geometry": route.get("geometry")
     }

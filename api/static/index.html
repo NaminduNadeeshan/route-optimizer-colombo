@@ -3,68 +3,211 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Route Optimizer Dashboard</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <link rel="stylesheet" href="style.css">
-</head>
-<body class="h-screen flex flex-col bg-gray-100 font-sans">
+    <title>Enterprise Route Optimizer</title>
     
-    <!-- Navbar -->
-    <header class="bg-indigo-600 text-white p-4 shadow-md flex justify-between items-center">
-        <h1 class="text-xl font-bold">Delivery Route Optimizer (Colombo)</h1>
-        <div class="flex items-center">
-            <label for="start-time" class="mr-2 text-sm font-semibold">Start:</label>
-            <input type="time" id="start-time" value="09:00" class="text-black px-2 py-1 rounded mr-3 shadow-sm outline-none">
-            
-            <label for="end-time" class="mr-2 text-sm font-semibold">Deadline:</label>
-            <input type="time" id="end-time" value="17:00" class="text-black px-2 py-1 rounded mr-4 shadow-sm outline-none">
-            
-            <button id="btn-optimize" class="bg-white text-indigo-600 px-4 py-2 rounded shadow font-semibold hover:bg-gray-100 transition">
-                Optimize Route
-            </button>
-            <button id="btn-clear" class="bg-red-500 text-white px-4 py-2 rounded shadow font-semibold hover:bg-red-600 transition ml-2">
-                Clear Map
-            </button>
-        </div>
-    </header>
+    <!-- Fonts & Icons -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
+    
+    <!-- Styles -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'] },
+                    colors: {
+                        brand: { 50: '#f0f4ff', 100: '#e0e9ff', 500: '#3b82f6', 600: '#2563eb', 900: '#1e3a8a' },
+                        slate: { 850: '#162032', 900: '#0f172a' }
+                    }
+                }
+            }
+        }
+    </script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="style.css?v=4">
+</head>
+<body class="h-screen w-screen flex bg-slate-50 font-sans overflow-hidden text-slate-800">
 
-    <!-- Main Content -->
-    <div class="flex-1 flex overflow-hidden">
+    <!-- Left Sidebar -->
+    <aside class="w-[360px] bg-white border-r border-slate-200 flex flex-col h-full shadow-[4px_0_24px_rgba(0,0,0,0.02)] z-10 relative">
         
-        <!-- Sidebar -->
-        <div class="w-1/4 bg-white p-4 shadow-lg overflow-y-auto flex flex-col">
-            <h2 class="text-lg font-bold mb-2">Routing Summary</h2>
-            <div id="stats-panel" class="bg-gray-50 p-3 rounded border border-gray-200 mb-4 text-sm text-gray-700">
-                <p><strong>Total Drops:</strong> <span id="val-drops">0</span></p>
-                <p><strong>Est. Distance:</strong> <span id="val-dist">0 km</span></p>
-                <p><strong>Est. Duration:</strong> <span id="val-time">0 min</span></p>
+        <!-- Header / Logo -->
+        <div class="h-16 flex items-center px-6 border-b border-slate-100 bg-white">
+            <div class="w-8 h-8 rounded-lg bg-brand-600 flex items-center justify-center mr-3 shadow-sm shadow-brand-500/30">
+                <span class="material-symbols-rounded text-white text-[20px]">route</span>
             </div>
-            
-            <h3 class="font-semibold text-gray-600 border-b pb-1 mb-2">Instructions</h3>
-            <ul class="text-sm text-gray-600 list-disc pl-4 space-y-1 mb-4">
-                <li>Click anywhere on the map to add delivery drops.</li>
-                <li>The first point is always your <strong>Depot</strong> (Start/End).</li>
-                <li>Click "Optimize Route" to trigger the VROOM engine.</li>
-            </ul>
-            
-            <h3 class="font-semibold text-gray-600 border-b pb-1 mb-2">Turn-by-turn Sequence</h3>
-            <div id="route-steps" class="flex-1 overflow-y-auto text-sm space-y-2">
-                <!-- Sequence steps injected here -->
+            <div>
+                <h1 class="text-[15px] font-bold text-slate-900 tracking-tight leading-tight">Nexus Router</h1>
+                <p class="text-[11px] font-medium text-slate-400 tracking-wide uppercase">Enterprise Global Engine</p>
             </div>
         </div>
 
-        <!-- Map Container -->
-        <div id="map" class="flex-1 relative z-0">
-            <div id="loading-overlay" class="absolute inset-0 bg-white/80 z-[1000] hidden flex-col justify-center items-center">
-                <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mb-2"></div>
-                <p class="font-semibold text-indigo-600">VROOM is calculating...</p>
+        <div class="flex-1 overflow-y-auto overflow-x-hidden p-6 custom-scrollbar">
+            
+            <!-- Context Configuration -->
+            <div class="mb-6">
+                <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Operating Region</h2>
+                <div class="relative">
+                    <span class="material-symbols-rounded absolute left-3 top-2.5 text-slate-400 text-[20px]">public</span>
+                    <select id="city-selector" class="w-full bg-slate-50 border border-slate-200 text-slate-800 text-sm font-semibold rounded-xl pl-10 pr-8 py-2.5 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all appearance-none shadow-sm cursor-pointer hover:bg-slate-100">
+                        <option value="beijing" selected>🇨🇳 Beijing (T-Drive Data)</option>
+                        <option value="colombo">🇱🇰 Colombo (Local Data)</option>
+                        <option value="porto">🇵🇹 Porto (Euro Data)</option>
+                        <option value="california">🇺🇸 California (PeMS04)</option>
+                    </select>
+                    <span class="material-symbols-rounded absolute right-3 top-3 text-slate-400 text-[18px] pointer-events-none">expand_more</span>
+                </div>
+            </div>
+
+            <!-- Schedule Configuration -->
+            <div class="mb-8">
+                <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Planning Schedule</h2>
+                
+                <div class="mb-3 relative">
+                    <label for="planning-date" class="block text-[10px] font-semibold text-slate-500 absolute -top-2 left-2 bg-white px-1 z-10">Date</label>
+                    <input type="date" id="planning-date" class="w-full bg-transparent border border-slate-200 text-slate-700 text-sm font-medium rounded-xl px-3 py-2 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all shadow-sm">
+                </div>
+
+                <div class="flex space-x-3">
+                    <div class="flex-1 relative">
+                        <label for="start-time" class="block text-[10px] font-semibold text-slate-500 absolute -top-2 left-2 bg-white px-1 z-10">Start</label>
+                        <input type="time" id="start-time" value="09:00" class="w-full bg-transparent border border-slate-200 text-slate-700 text-sm font-medium rounded-xl px-3 py-2 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all shadow-sm">
+                    </div>
+                    <div class="flex-1 relative">
+                        <label for="end-time" class="block text-[10px] font-semibold text-slate-500 absolute -top-2 left-2 bg-white px-1 z-10">Deadline</label>
+                        <input type="time" id="end-time" value="17:00" class="w-full bg-transparent border border-slate-200 text-slate-700 text-sm font-medium rounded-xl px-3 py-2 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all shadow-sm">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Dashboard KPIs -->
+            <div class="mb-8">
+                <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Telemetry Stats</h2>
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="bg-slate-50 border border-slate-100 rounded-xl p-3 flex flex-col">
+                        <div class="flex items-center text-slate-500 mb-1">
+                            <span class="material-symbols-rounded text-[16px] mr-1.5">local_shipping</span>
+                            <span class="text-xs font-medium">Deliveries</span>
+                        </div>
+                        <span id="val-drops" class="text-xl font-bold text-slate-800">0</span>
+                    </div>
+                    <div class="bg-slate-50 border border-slate-100 rounded-xl p-3 flex flex-col relative">
+                        <div class="flex items-center text-slate-500 mb-1">
+                            <span class="material-symbols-rounded text-[16px] mr-1.5">route</span>
+                            <span class="text-xs font-medium">Distance</span>
+                        </div>
+                        <div class="flex items-end space-x-2">
+                            <span id="val-dist" class="text-xl font-bold text-slate-800">0 km</span>
+                            <span id="val-dist-old" class="text-xs font-medium text-slate-400 line-through mb-1 hidden">0 km</span>
+                        </div>
+                        <div id="badge-dist-save" class="absolute top-2 right-2 bg-emerald-100 text-emerald-700 text-[10px] font-bold px-1.5 py-0.5 rounded-md hidden">-0 km</div>
+                    </div>
+                    <div class="col-span-2 bg-brand-50 border border-brand-100 rounded-xl p-3 flex flex-col relative">
+                        <div class="flex items-center justify-between mb-2">
+                            <div class="flex items-center text-brand-700">
+                                <span class="material-symbols-rounded text-[18px] mr-1.5">schedule</span>
+                                <span class="text-sm font-semibold">Total Shift Time</span>
+                            </div>
+                            <div id="badge-time-save" class="bg-emerald-500 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow-sm hidden">Saved 0 min</div>
+                        </div>
+                        
+                        <div class="flex items-end space-x-2 mb-3">
+                            <span id="val-time" class="text-2xl font-bold text-brand-700 tracking-tight">0 min</span>
+                            <span id="val-time-old" class="text-xs font-medium text-brand-400/70 line-through mb-1 hidden">0 min</span>
+                        </div>
+                        
+                        <div class="flex items-center justify-between border-t border-brand-200/50 pt-2 mt-1">
+                            <div class="flex flex-col">
+                                <span class="text-[10px] text-brand-600/80 font-bold uppercase tracking-wide">Driving</span>
+                                <span id="val-time-driving" class="text-sm font-bold text-brand-700">0 min</span>
+                            </div>
+                            <div class="h-6 w-px bg-brand-200/50"></div>
+                            <div class="flex flex-col">
+                                <span class="text-[10px] text-brand-600/80 font-bold uppercase tracking-wide">Wait Time</span>
+                                <span id="val-time-service" class="text-sm font-bold text-brand-700">0 min</span>
+                            </div>
+                            <div class="h-6 w-px bg-brand-200/50"></div>
+                            <div class="flex flex-col">
+                                <span class="text-[10px] text-rose-500/80 font-bold uppercase tracking-wide">Unassigned</span>
+                                <span id="val-unassigned" class="text-sm font-bold text-rose-600">0 drops</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Route Sequence -->
+            <div>
+                <div class="flex items-center justify-between mb-3 border-b border-slate-100 pb-2">
+                    <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider">Turn-by-turn Sequence</h2>
+                    <span class="material-symbols-rounded text-slate-300 text-[18px]">list_alt</span>
+                </div>
+                
+                <div id="route-steps" class="space-y-0 relative">
+                    <!-- Placeholder State -->
+                    <div class="text-center py-8 opacity-50" id="empty-state">
+                        <span class="material-symbols-rounded text-4xl text-slate-300 mb-2">touch_app</span>
+                        <p class="text-sm font-medium text-slate-500">Tap the map to add delivery points.</p>
+                        <p class="text-xs text-slate-400 mt-1">1st pin is your logistics depot.</p>
+                    </div>
+                    <!-- Sequence steps injected here -->
+                </div>
+            </div>
+            
+        </div>
+        
+        <!-- Sidebar Footer Actions -->
+        <div class="p-4 border-t border-slate-100 bg-slate-50/50">
+            <button id="btn-optimize" class="w-full bg-slate-900 hover:bg-slate-800 text-white rounded-xl py-3 px-4 font-semibold text-sm shadow-md shadow-slate-900/20 transition-all flex justify-center items-center group">
+                <span class="material-symbols-rounded text-[18px] mr-2 group-hover:animate-pulse">rocket_launch</span>
+                Compute Optimal Route
+            </button>
+        </div>
+    </aside>
+
+    <!-- Map Area -->
+    <main class="flex-1 relative h-full w-full bg-slate-100">
+        
+        <div id="map" class="absolute inset-0 z-0"></div>
+        
+        <!-- Loading Overlay -->
+        <div id="loading-overlay" class="absolute inset-0 bg-slate-900/30 backdrop-blur-sm z-[1000] hidden flex-col justify-center items-center transition-all duration-300">
+            <div class="bg-white rounded-2xl shadow-2xl p-6 flex flex-col items-center min-w-[240px]">
+                <div class="relative w-12 h-12 mb-4">
+                    <div class="absolute inset-0 border-4 border-slate-100 rounded-full"></div>
+                    <div class="absolute inset-0 border-4 border-brand-600 rounded-full border-t-transparent animate-spin"></div>
+                </div>
+                <h3 class="font-bold text-slate-800 text-lg">Optimizing Route</h3>
+                <p class="text-xs text-slate-500 mt-1">Querying ST-GAT Engine & VROOM...</p>
             </div>
         </div>
-    </div>
+        
+        <!-- Map Floating Controls -->
+        <div class="absolute top-6 right-6 z-[400] flex flex-col gap-3">
+            <button id="btn-export" class="bg-white text-slate-600 hover:text-brand-600 w-10 h-10 rounded-xl shadow-lg border border-slate-100 flex items-center justify-center transition-colors group" title="Export Pins JSON">
+                <span class="material-symbols-rounded text-[22px]">download</span>
+            </button>
+            <button id="btn-import" class="bg-white text-slate-600 hover:text-brand-600 w-10 h-10 rounded-xl shadow-lg border border-slate-100 flex items-center justify-center transition-colors group" title="Import Pins JSON">
+                <span class="material-symbols-rounded text-[22px]">upload</span>
+            </button>
+            <button id="btn-clear" class="bg-white text-slate-600 hover:text-red-600 w-10 h-10 rounded-xl shadow-lg border border-slate-100 flex items-center justify-center transition-colors group" title="Clear Map">
+                <span class="material-symbols-rounded text-[22px]">delete</span>
+            </button>
+            <input type="file" id="file-import" accept=".json" class="hidden">
+        </div>
+        
+        <!-- Logo Watermark on Map -->
+        <div class="absolute bottom-6 right-6 z-[400] opacity-70 pointer-events-none flex items-center bg-white/80 backdrop-blur-md px-3 py-1.5 rounded-lg shadow-sm border border-white">
+            <span class="material-symbols-rounded text-brand-600 text-[18px] mr-1.5">memory</span>
+            <span class="text-xs font-bold text-slate-800 tracking-tight">ST-GAT NEURAL ENGINE</span>
+        </div>
+    </main>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/leaflet-polylinedecorator@1.6.0/dist/leaflet.polylineDecorator.min.js"></script>
-    <script src="app.js"></script>
+    <script src="app.js?v=12"></script>
 </body>
 </html>
