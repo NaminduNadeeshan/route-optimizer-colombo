@@ -46,3 +46,12 @@ Icon
 # Log Files
 *.log
 data/*.osm.pbf
+
+# Datasets
+data/datasets/
+
+# Local Venv
+ml-pipeline/venv/
+
+# Model plots
+ml-pipeline/*.png

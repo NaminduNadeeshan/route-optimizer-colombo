@@ -9,7 +9,7 @@ services:
     volumes:
       - ./data:/data
     # Use Multi-Level Dijkstra (MLD) algorithm for fast routing
-    command: "osrm-routed --algorithm mld /data/sri-lanka-latest.osrm"
+    command: "osrm-routed --algorithm mld /data/Beijing.osrm"
 
   # VROOM Backend (Optimization Solver)
   vroom:
