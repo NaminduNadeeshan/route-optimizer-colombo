@@ -1,6 +1,27 @@
-# 🚙 Open-Source Time-Travel Route Optimizer
+# 🇱🇰 Open-Source Colombo Route Optimizer
 
-A full-stack, enterprise-grade route optimization engine powered by a custom **Spatio-Temporal Graph Neural Network (ST-GNN)**. This system predicts future traffic congestion and uses the VROOM engine to optimally schedule fleet deliveries.
+A 100% free, enterprise-grade route optimization engine built specifically for the Sri Lankan logistics and delivery industry. Powered by a custom **Spatio-Temporal Graph Attention Network (ST-GAT)**, this system predicts future traffic congestion across Colombo and uses the VROOM engine to optimally schedule fleet deliveries.
+
+---
+
+## 🎯 Our Mission: Free AI for Sri Lankan Logistics
+Commercial routing APIs (like Google Maps or Mapbox) are incredibly expensive for local startups, supply-chain operators, and fleet dispatchers. 
+
+**Our ultimate goal is to provide the logistics industry with a state-of-the-art, 100% free alternative.** By combining OpenStreetMap topology with advanced Artificial Intelligence, this platform allows any delivery company to cut fuel costs, bypass traffic, and optimize dispatching without paying per-ping API routing fees.
+
+---
+
+## 🌍 The Strategy: Using Global Data for Local Accuracy
+To make the Colombo model highly accurate, the AI needs millions of data points to learn how traffic bottlenecks form and disperse. Because highly granular, open-source GPS data for Colombo is currently sparse, we utilize **Global Transfer Learning**.
+
+We leverage massive open-source datasets from around the world to *pre-train* the model's physics engine. We then seamlessly inject those deep structural weights into the Colombo map!
+
+### Supported Pre-Training Datasets:
+1. **Microsoft T-Drive (Beijing)**: 15 Million raw GPS trajectories. Used to teach the model how dense, urban grid traffic ripples across intersections.
+2. **PeMS04 (California Highways)**: Used to teach the model high-speed highway congestion dynamics.
+3. **Porto Taxi (Portugal)**: 1.7 Million trajectories used to understand chaotic, narrow urban routing.
+
+*By pre-training on these global datasets, the model learns the universal laws of traffic. When you feed it your local Colombo fleet data, it adapts instantly using our `strict=False` warm-start architecture.*
 
 ---
 
@@ -9,30 +30,13 @@ A full-stack, enterprise-grade route optimization engine powered by a custom **S
 Our ML backend transitions basic historical averages into state-of-the-art predictive physics using PyTorch Geometric.
 
 ### 🧠 Model Architecture: ST-GAT
-The core traffic prediction engine has been heavily upgraded to an **ST-GAT (Spatio-Temporal Graph Attention Network)**:
 1. **Deeper Temporal Gating**: 2-Layer `nn.GRU` (Hidden: 128) processes historical sequences, capturing morning/evening rush hour dynamics.
 2. **Spatial Attention (`GATv2Conv`)**: Instead of basic convolutions, the model dynamically learns *which* intersections and incoming roads matter most, weighing bottlenecks across the topological OpenStreetMap graph.
 3. **Automated Checkpointing**: Built-in early stopping automatically monitors validation loss, halting training to prevent overfitting and cleanly extracting the highest-performing `.pth` weights.
 
-### 🌍 Cross-City Transfer Learning (Warm Start)
-We implemented automated **Transfer Learning**. Traffic behaves similarly worldwide (bottlenecks cause ripples). You can pre-train the model on massive 15-Million point datasets in Beijing, and then seamlessly inject those deep structural weights into your local city's map. 
-The pipeline uses `strict=False` loading to transfer the universal GRU/GAT layers while ignoring graph-size differences!
-
-## 📊 Supported Open Datasets
-
-The pipeline natively parses several of the world's most robust open-source traffic datasets for testing and pre-training:
-
-1. **Microsoft T-Drive (Beijing)**:
-   * 15 Million raw GPS trajectories across a dense urban grid.
-   * Native parsing adapter inside `map_matcher.py`.
-2. **PeMS04 (California Highways)**:
-   * Included native benchmarking script (`train_pems04.py`) that strictly processes static `.npz` highway sensor arrays, entirely bypassing OSRM for direct architecture benchmarking.
-3. **Porto Taxi Dataset (Portugal)**:
-   * 1.7 Million European trajectories. Accessible via the included `download_porto_hub.py` script.
-
 ## 🗺️ How it Works (End-to-End)
 
-1. **Telemetry Ingestion**: `map_matcher.py` reads raw `[lon, lat, timestamp]` datasets (e.g. T-Drive) and hits the OSRM `/match` engine to aggressively snap GPS noise to the true physical nodes in your `.osm.pbf` map.
+1. **Telemetry Ingestion**: `map_matcher.py` reads raw `[lon, lat, timestamp]` datasets and hits the OSRM `/match` engine to aggressively snap GPS noise to the true physical nodes in your `.osm.pbf` map.
 2. **Edge Extraction**: The matcher extracts continuous driving trips and calculates the exact traversal durations, saving a chronological matrix to `real_traffic_edges.csv`.
 3. **Training**: `train_stgnn.py` builds the spatial edge-index and trains the ST-GAT model on the true traffic physics.
 4. **Time-Travel Optimization**: The FastAPI backend bridges the PyTorch model to the VROOM solver. If a delivery route takes 5 hours, the backend queries the neural network to hot-reload OSRM's traffic weights for the future hours!
