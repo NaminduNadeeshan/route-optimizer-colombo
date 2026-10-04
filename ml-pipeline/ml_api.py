@@ -1,22 +1,25 @@
 from fastapi import FastAPI, HTTPException
 import subprocess
 import os
+from typing import Optional
 
 app = FastAPI(title="ML Traffic Bridge API")
 
-@app.post("/update-traffic/{hour}")
-def update_traffic(hour: int):
+@app.post("/update-traffic/{city}/{hour}")
+def update_traffic(city: str, hour: int, date: Optional[str] = None):
     """
-    Triggers the PyTorch ST-GNN inference script for the requested hour.
+    Triggers the PyTorch ST-GNN inference script for the requested hour and city.
     This runs on the Host Mac (where Apple Silicon GPUs are accessible)
-    and hot-reloads the OSRM Docker container.
+    and hot-reloads the corresponding OSRM Docker container.
     """
-    print(f"Triggering PyTorch ML Pipeline for {hour}:00...")
+    print(f"Triggering PyTorch ML Pipeline for {city} at {hour}:00, Date: {date}...")
     try:
         script_path = os.path.join(os.path.dirname(__file__), "update_osrm_traffic.py")
-        # Run the script using the current environment's Python (which has PyTorch)
-        subprocess.run(["python3", script_path, "--hour", str(hour)], check=True)
-        return {"status": "success", "hour": hour}
+        cmd = ["python3", script_path, "--hour", str(hour), "--city", city]
+        if date:
+            cmd.extend(["--date", date])
+        subprocess.run(cmd, check=True)
+        return {"status": "success", "hour": hour, "date": date}
     except subprocess.CalledProcessError as e:
         raise HTTPException(status_code=500, detail=f"ML Script failed: {str(e)}")
     except Exception as e:

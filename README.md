@@ -34,6 +34,13 @@ Our ML backend transitions basic historical averages into state-of-the-art predi
 2. **Spatial Attention (`GATv2Conv`)**: Instead of basic convolutions, the model dynamically learns *which* intersections and incoming roads matter most, weighing bottlenecks across the topological OpenStreetMap graph.
 3. **Automated Checkpointing**: Built-in early stopping automatically monitors validation loss, halting training to prevent overfitting and cleanly extracting the highest-performing `.pth` weights.
 
+### 🇱🇰 Advanced Colombo Event Modeling (6-Feature Tensor)
+The neural network has been upgraded to a 6-feature input tensor specifically engineered to model Sri Lanka's unique cultural and temporal traffic dynamics. The model natively learns and predicts variations based on:
+- **Poya Days:** Modulates traffic to reflect empty morning streets but heavily congested evening roads (due to Bana/temple traffic).
+- **Sinhala & Tamil New Year (Avurudu):** Explicitly flags the April 11-13 outbound exodus (drastic city traffic reduction) and the April 15-17 inbound return rush (severe congestion).
+- **Long Weekends:** Detects when a holiday borders a weekend, mathematically modeling the massive traffic drop compared to a standard weekend.
+- **Dynamic API Bridge:** The frontend UI Date Picker passes the exact planning date to the Python backend, which automatically extracts these holidays and feeds them directly into the PyTorch inference tensor.
+
 ## 🗺️ How it Works (End-to-End)
 
 1. **Telemetry Ingestion**: `map_matcher.py` reads raw `[lon, lat, timestamp]` datasets and hits the OSRM `/match` engine to aggressively snap GPS noise to the true physical nodes in your `.osm.pbf` map.

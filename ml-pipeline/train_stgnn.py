@@ -35,17 +35,44 @@ def load_real_colombo_graph():
     edge_index = torch.tensor(unique_edges.values.T, dtype=torch.long)
     print(f"Extracted {edge_index.size(1)} unique road segments (edges).")
     
-    X_numpy = np.full((num_nodes, 24, 1), 30.0, dtype=np.float32)
+    # 3 Features: [Speed, is_weekend, is_holiday]
+    # We expand the 24 hours to a full 7-day week (168 hours) to train the model on weekly cycles
+    X_numpy = np.full((num_nodes, 168, 3), 0.0, dtype=np.float32)
+    X_numpy[:, :, 0] = 30.0 # Default speed
     
+    # 1. First build the base 24-hour profile from the CSV
+    base_24h = np.full((num_nodes, 24), 30.0, dtype=np.float32)
     for _, row in df.iterrows():
         node_id = int(row['pt_target'])
         hour = int(row['hour']) % 24
         speed = float(row['avg_speed'])
         
-        if X_numpy[node_id, hour, 0] == 30.0:
-            X_numpy[node_id, hour, 0] = speed
+        if base_24h[node_id, hour] == 30.0:
+            base_24h[node_id, hour] = speed
         else:
-            X_numpy[node_id, hour, 0] = (X_numpy[node_id, hour, 0] + speed) / 2
+            base_24h[node_id, hour] = (base_24h[node_id, hour] + speed) / 2
+            
+    # 2. Expand into 168 hours with Weekend & Holiday multipliers
+    for day in range(7):
+        is_weekend = 1.0 if day >= 5 else 0.0 # Sat, Sun
+        is_holiday = 1.0 if day == 2 else 0.0 # Simulate Day 2 as a random holiday
+        
+        for hour in range(24):
+            t_idx = day * 24 + hour
+            
+            # Reduce traffic congestion (increase speed) on weekends & holidays
+            speed = base_24h[:, hour]
+            if is_holiday:
+                speed = speed * 1.3
+            elif is_weekend:
+                speed = speed * 1.15
+                
+            # Cap at 50 km/h (city limit)
+            speed = np.clip(speed, 0, 50.0)
+            
+            X_numpy[:, t_idx, 0] = speed
+            X_numpy[:, t_idx, 1] = is_weekend
+            X_numpy[:, t_idx, 2] = is_holiday
             
     X_tensor = torch.tensor(X_numpy)
     
@@ -58,7 +85,9 @@ def load_real_colombo_graph():
 
 class HistoricalAverage:
     def fit(self, X_train):
-        self.node_means = X_train.mean(dim=(0, 2)).squeeze()
+        # X_train is (windows, nodes, seq_len, features)
+        # Average only feature 0 (speed)
+        self.node_means = X_train[:, :, :, 0].mean(dim=(0, 2)).squeeze()
         
     def predict(self, x_window):
         return self.node_means.unsqueeze(1)
@@ -66,7 +95,7 @@ class HistoricalAverage:
 class PureGRU(nn.Module):
     def __init__(self, seq_len=12, hidden_dim=64, future_steps=1):
         super(PureGRU, self).__init__()
-        self.gru = nn.GRU(input_size=1, hidden_size=hidden_dim, batch_first=True)
+        self.gru = nn.GRU(input_size=3, hidden_size=hidden_dim, batch_first=True)
         self.fc = nn.Linear(hidden_dim, future_steps)
         
     def forward(self, x, edge_index):
@@ -77,7 +106,7 @@ class STGNN(nn.Module):
     """Standard Graph Convolution Network mixed with GRU"""
     def __init__(self, seq_len=12, hidden_dim=64, future_steps=1):
         super(STGNN, self).__init__()
-        self.gru1 = nn.GRU(input_size=1, hidden_size=hidden_dim, batch_first=True)
+        self.gru1 = nn.GRU(input_size=3, hidden_size=hidden_dim, batch_first=True)
         self.gcn1 = GCNConv(hidden_dim, hidden_dim, normalize=False)
         self.gcn2 = GCNConv(hidden_dim, hidden_dim, normalize=False)
         self.fc1 = nn.Linear(hidden_dim, 32)
@@ -98,7 +127,7 @@ class STGAT(nn.Module):
     def __init__(self, seq_len=12, hidden_dim=128, future_steps=1):
         super(STGAT, self).__init__()
         # Deeper temporal processing
-        self.gru = nn.GRU(input_size=1, hidden_size=hidden_dim, num_layers=2, batch_first=True, dropout=0.2)
+        self.gru = nn.GRU(input_size=3, hidden_size=hidden_dim, num_layers=2, batch_first=True, dropout=0.2)
         
         # Attention mechanisms dynamically learn which intersections matter most
         self.gat1 = GATv2Conv(hidden_dim, hidden_dim // 2, heads=2, concat=True)
@@ -145,9 +174,21 @@ def train_model(model, optimizer, data, train_windows, test_windows, SEQ_LEN, FU
     # === TRANSFER LEARNING: WARM START ===
     if pretrained_path and os.path.exists(pretrained_path):
         print(f"🔄 TRANSFER LEARNING: Loading pre-trained weights for {model_name} from {pretrained_path}...")
-        # strict=False allows it to gracefully handle any slight graph size mismatches
-        model.load_state_dict(torch.load(pretrained_path, map_location=device), strict=False)
-        print("✅ Pre-trained traffic physics successfully injected!")
+        try:
+            state_dict = torch.load(pretrained_path, map_location=device)
+            model_dict = model.state_dict()
+            
+            # Filter out keys with shape mismatches (e.g., GRU input_size 1 -> 3)
+            filtered_dict = {
+                k: v for k, v in state_dict.items() 
+                if k in model_dict and v.size() == model_dict[k].size()
+            }
+            
+            model_dict.update(filtered_dict)
+            model.load_state_dict(model_dict)
+            print("✅ Pre-trained traffic physics successfully injected (with shape adaptations)!")
+        except Exception as e:
+            print(f"⚠️ Warning: Could not load pre-trained weights properly ({e})")
     # =====================================
     
     train_history = []
