@@ -78,7 +78,7 @@ def main():
         
         from train_stgnn_colombo_advanced import load_real_colombo_graph_advanced, STGAT
         data, node_mapping = load_real_colombo_graph_advanced()
-        model = STGAT(seq_len=12, hidden_dim=64, input_size=6).to(device)
+        model = STGAT(seq_len=12, hidden_dim=16, input_size=6).to(device)
     else:
         osrm_map = "Beijing.osrm"
         container_name = "route_osrm_beijing"
@@ -109,6 +109,7 @@ def main():
         # Inject the real-time flags into the temporal sequence
         x_window[:, :, 1] = is_weekend
         if args.city == "colombo":
+            x_window[:, :, 0] = x_window[:, :, 0] / 50.0
             x_window[:, :, 2] = is_long_weekend
             x_window[:, :, 3] = is_poya
             x_window[:, :, 4] = is_avurudu_pre
@@ -117,6 +118,8 @@ def main():
             x_window[:, :, 2] = is_holiday
             
         future_predictions = model(x_window, data.edge_index)
+        if args.city == "colombo":
+            future_predictions = future_predictions * 50.0
         
     data_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "data"))
     os.makedirs(data_dir, exist_ok=True)
@@ -130,6 +133,8 @@ def main():
     
     exit_code = os.system(osrm_command)
     if exit_code == 0:
+        print(f"Restarting {container_name} to load customized graph into RAM...")
+        os.system(f"docker restart {container_name}")
         print("\nOSRM Routing Graph Successfully Updated!")
 
 if __name__ == "__main__":
