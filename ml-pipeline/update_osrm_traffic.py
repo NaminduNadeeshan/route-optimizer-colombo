@@ -133,6 +133,8 @@ def main():
     
     exit_code = os.system(osrm_command)
     if exit_code == 0:
+        print(f"Restarting {container_name} to load customized graph into RAM...")
+        os.system(f"docker restart {container_name}")
         print("\nOSRM Routing Graph Successfully Updated!")
 
 if __name__ == "__main__":
