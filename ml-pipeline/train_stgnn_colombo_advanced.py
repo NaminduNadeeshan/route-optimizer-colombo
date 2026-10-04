@@ -35,15 +35,32 @@ def load_real_colombo_graph_advanced():
     # We expand the 24 hours to a full 365-day year (8760 hours)
     X_numpy = np.full((num_nodes, 8760, 6), 0.0, dtype=np.float32)
     
-    base_24h = np.full((num_nodes, 24), 30.0, dtype=np.float32)
+    # Base speeds from CSV
+    base_24h = np.full((num_nodes, 24), np.nan, dtype=np.float32)
     for _, row in df.iterrows():
         node_id = int(row['pt_target'])
         hour = int(row['hour']) % 24
         speed = float(row['avg_speed'])
-        if base_24h[node_id, hour] == 30.0:
+        if np.isnan(base_24h[node_id, hour]):
             base_24h[node_id, hour] = speed
         else:
             base_24h[node_id, hour] = (base_24h[node_id, hour] + speed) / 2
+            
+    # Fill missing hours with a realistic daily curve relative to the mean of observed hours
+    # Peak hours slower (e.g. 0.6x), night hours faster (1.2x)
+    curve_multipliers = np.array([
+        1.3, 1.3, 1.4, 1.4, 1.4, 1.2,  # 00-05
+        1.0, 0.6, 0.5, 0.7, 0.9, 0.9,  # 06-11
+        0.9, 0.9, 0.9, 0.9, 0.7, 0.5,  # 12-17
+        0.5, 0.6, 0.8, 1.0, 1.1, 1.2   # 18-23
+    ])
+    
+    for i in range(num_nodes):
+        observed = base_24h[i, ~np.isnan(base_24h[i])]
+        mean_spd = np.mean(observed) if len(observed) > 0 else 30.0
+        for h in range(24):
+            if np.isnan(base_24h[i, h]):
+                base_24h[i, h] = mean_spd * curve_multipliers[h]
             
     # Avurudu is April 14th (Day 104 in non-leap year). Pre: 101-103. Post: 105-107.
     # Poya days (roughly every 29.5 days). E.g. Jan 25 (Day 25), Feb 24 (Day 55)...
@@ -51,23 +68,23 @@ def load_real_colombo_graph_advanced():
     
     import random
     
-    for day in range(365):
+    for day_of_year in range(1, 366):
         # Jan 1 2024 was a Monday (so day 0 is Monday, day 5 is Saturday, day 6 is Sunday)
-        weekday = day % 7
+        weekday = (day_of_year - 1) % 7
         is_weekend = 1.0 if weekday >= 5 else 0.0
         
         # Long weekend: If a holiday falls on Monday (day 0) or Friday (day 4)
         is_long_weekend = 0.0
-        if is_weekend and (day - 1 in poya_days or day - 2 in poya_days or day + 1 in poya_days or day + 2 in poya_days):
+        if is_weekend and (day_of_year - 1 in poya_days or day_of_year - 2 in poya_days or day_of_year + 1 in poya_days or day_of_year + 2 in poya_days):
             is_long_weekend = 1.0
             
-        is_poya = 1.0 if day in poya_days else 0.0
+        is_poya = 1.0 if day_of_year in poya_days else 0.0
         
-        is_avurudu_pre = 1.0 if 101 <= day <= 103 else 0.0
-        is_avurudu_post = 1.0 if 105 <= day <= 107 else 0.0
+        is_avurudu_pre = 1.0 if 101 <= day_of_year <= 103 else 0.0
+        is_avurudu_post = 1.0 if 105 <= day_of_year <= 107 else 0.0
         
         for hour in range(24):
-            t_idx = day * 24 + hour
+            t_idx = (day_of_year - 1) * 24 + hour
             speed = base_24h[:, hour].copy()
             
             # Poya Day logic (Low traffic morning, High traffic evening)
@@ -112,7 +129,7 @@ class STGAT(nn.Module):
     """
     Enterprise-Grade ST-GAT Architecture with Deep Layers, Normalization, and Dropout.
     """
-    def __init__(self, seq_len=12, hidden_dim=64, input_size=6, dropout=0.3):
+    def __init__(self, seq_len=12, hidden_dim=16, input_size=6, dropout=0.3):
         super(STGAT, self).__init__()
         # 1. Spatial Processing: Double GAT Layers for 2-hop neighborhood awareness
         self.gat1 = GATConv(in_channels=input_size, out_channels=hidden_dim, heads=4, concat=False)
@@ -182,10 +199,13 @@ def train_model(model, optimizer, data, train_windows, test_windows, SEQ_LEN, FU
         model.train()
         for w in train_windows:
             x_w = data.x[:, w:w+SEQ_LEN, :].to(device)
+            # Scale speed feature (index 0)
+            x_w[:, :, 0] = x_w[:, :, 0] / 50.0
+            
             y_w = data.x[:, w+SEQ_LEN : w+SEQ_LEN+FUTURE_STEPS, 0].to(device)
             
             optimizer.zero_grad()
-            pred = model(x_w, data.edge_index.to(device))
+            pred = model(x_w, data.edge_index.to(device)) * 50.0
             loss = criterion(pred, y_w)
             loss.backward()
             optimizer.step()
@@ -195,8 +215,9 @@ def train_model(model, optimizer, data, train_windows, test_windows, SEQ_LEN, FU
         with torch.no_grad():
             for w in test_windows:
                 x_w = data.x[:, w:w+SEQ_LEN, :].to(device)
+                x_w[:, :, 0] = x_w[:, :, 0] / 50.0
                 y_w = data.x[:, w+SEQ_LEN : w+SEQ_LEN+FUTURE_STEPS, 0].to(device)
-                pred = model(x_w, data.edge_index.to(device))
+                pred = model(x_w, data.edge_index.to(device)) * 50.0
                 val_preds.append(pred.cpu().numpy())
                 val_targets.append(y_w.cpu().numpy())
                 
@@ -245,17 +266,15 @@ def main():
     import random
     random.seed(42)
     random.shuffle(windows)
+    train_windows = windows[:150]
+    test_windows = windows[150:200]
     
-    # Use 32 windows for ultra-fast epoch iteration to show terminal output live
-    train_windows = windows[:32]
-    test_windows = windows[32:48]
-    
-    stgat_model = STGAT(seq_len=SEQ_LEN, hidden_dim=64, input_size=6, dropout=0.3)
+    stgat_model = STGAT(seq_len=SEQ_LEN, hidden_dim=16, input_size=6, dropout=0.3)
     stgat_opt = torch.optim.AdamW(stgat_model.parameters(), lr=0.005)
     
     stgat_mae, stgat_rmse, stgat_mape, _ = train_model(
         stgat_model, stgat_opt, data, train_windows, test_windows, SEQ_LEN, FUTURE_STEPS, 
-        device, epochs=15, patience=3, model_name="Colombo Advanced ST-GAT"
+        device, epochs=5, patience=3, model_name="Colombo Advanced ST-GAT"
     )
     
     print("\nEvaluating Colombo Model (Avurudu, Poya, Long Weekends)...", flush=True)
