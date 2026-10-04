@@ -160,11 +160,23 @@
         </div>
         
         <!-- Sidebar Footer Actions -->
-        <div class="p-4 border-t border-slate-100 bg-slate-50/50">
+        <div class="p-4 border-t border-slate-100 bg-slate-50/50 flex flex-col gap-3">
             <button id="btn-optimize" class="w-full bg-slate-900 hover:bg-slate-800 text-white rounded-xl py-3 px-4 font-semibold text-sm shadow-md shadow-slate-900/20 transition-all flex justify-center items-center group">
                 <span class="material-symbols-rounded text-[18px] mr-2 group-hover:animate-pulse">rocket_launch</span>
                 Compute Optimal Route
             </button>
+            
+            <!-- Open Source Details -->
+            <div class="flex items-center justify-between mt-1 px-1">
+                <a href="https://github.com/NaminduNadeeshan/route-optimizer-colombo" target="_blank" class="text-[11px] font-bold text-slate-500 hover:text-brand-600 flex items-center transition-colors">
+                    <svg class="w-3.5 h-3.5 mr-1.5 fill-current" viewBox="0 0 24 24"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+                    Open Source
+                </a>
+                <button onclick="document.getElementById('tech-modal').classList.remove('hidden')" class="text-[11px] font-bold text-slate-500 hover:text-brand-600 flex items-center transition-colors">
+                    <span class="material-symbols-rounded text-[14px] mr-1">code_blocks</span>
+                    Engine Specs
+                </button>
+            </div>
         </div>
     </aside>
 
@@ -203,6 +215,78 @@
         <div class="absolute bottom-6 right-6 z-[400] opacity-70 pointer-events-none flex items-center bg-white/80 backdrop-blur-md px-3 py-1.5 rounded-lg shadow-sm border border-white">
             <span class="material-symbols-rounded text-brand-600 text-[18px] mr-1.5">memory</span>
             <span class="text-xs font-bold text-slate-800 tracking-tight">ST-GAT NEURAL ENGINE</span>
+        </div>
+        
+        <!-- Engine Specs Modal -->
+        <div id="tech-modal" class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm z-[2000] hidden flex items-center justify-center p-6">
+            <div class="bg-white w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-full">
+                <!-- Header -->
+                <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+                    <div class="flex items-center">
+                        <div class="w-8 h-8 rounded-lg bg-slate-900 flex items-center justify-center mr-3">
+                            <span class="material-symbols-rounded text-white text-[18px]">account_tree</span>
+                        </div>
+                        <div>
+                            <h2 class="text-base font-bold text-slate-800">Open Source Neural Architecture</h2>
+                            <p class="text-xs font-medium text-slate-500">Colombo ST-GAT Route Optimizer</p>
+                        </div>
+                    </div>
+                    <button onclick="document.getElementById('tech-modal').classList.add('hidden')" class="text-slate-400 hover:text-slate-700 transition-colors">
+                        <span class="material-symbols-rounded">close</span>
+                    </button>
+                </div>
+                
+                <!-- Body -->
+                <div class="p-6 overflow-y-auto">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        
+                        <!-- Neural Engine -->
+                        <div class="bg-brand-50/50 border border-brand-100 rounded-xl p-4">
+                            <div class="flex items-center mb-3">
+                                <span class="material-symbols-rounded text-brand-600 mr-2">hub</span>
+                                <h3 class="font-bold text-brand-900 text-sm">Deep ST-GAT Neural Net</h3>
+                            </div>
+                            <p class="text-[11px] text-slate-600 leading-relaxed mb-3">
+                                A custom PyTorch Spatial-Temporal Graph Attention Network trained natively on 17,236 real Colombo OSM road edges. It calculates traffic congestion via topological relationships.
+                            </p>
+                            <ul class="text-[11px] text-brand-700 font-medium space-y-1">
+                                <li>• Double-layer Temporal GRUs</li>
+                                <li>• 2-Hop Spatial Attention (GAT)</li>
+                                <li>• Layer Normalization & Dropout</li>
+                                <li>• 3.27 km/h Mean Absolute Error</li>
+                            </ul>
+                        </div>
+                        
+                        <!-- Event Synthesizer -->
+                        <div class="bg-amber-50/50 border border-amber-100 rounded-xl p-4">
+                            <div class="flex items-center mb-3">
+                                <span class="material-symbols-rounded text-amber-600 mr-2">calendar_month</span>
+                                <h3 class="font-bold text-amber-900 text-sm">Chronological Event Synthesizer</h3>
+                            </div>
+                            <p class="text-[11px] text-slate-600 leading-relaxed mb-3">
+                                The AI doesn't just guess traffic—it predicts it based on cultural events using a robust 6-feature tensor encompassing 365 days of Colombo patterns.
+                            </p>
+                            <ul class="text-[11px] text-amber-700 font-medium space-y-1">
+                                <li>• Sinhala & Tamil New Year (Avurudu)</li>
+                                <li>• Monthly Poya Day Traffic Shifts</li>
+                                <li>• Long Weekend Outbound Exodus</li>
+                            </ul>
+                        </div>
+                        
+                        <!-- VROOM Solver -->
+                        <div class="bg-emerald-50/50 border border-emerald-100 rounded-xl p-4 md:col-span-2">
+                            <div class="flex items-center mb-3">
+                                <span class="material-symbols-rounded text-emerald-600 mr-2">calculate</span>
+                                <h3 class="font-bold text-emerald-900 text-sm">C++ VROOM Micro-Routing Engine</h3>
+                            </div>
+                            <p class="text-[11px] text-slate-600 leading-relaxed">
+                                Once the Neural Network overwrites the OSRM speeds, the C++ VROOM engine computes the optimal Traveling Salesperson path within milliseconds. It explicitly respects the 8-hour motorcycle shift constraints and a realistic 3-minute physical drop-off service time per delivery.
+                            </p>
+                        </div>
+                        
+                    </div>
+                </div>
+            </div>
         </div>
     </main>
 
