@@ -1,297 +1,401 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Enterprise Route Optimizer</title>
-    
-    <!-- Fonts & Icons -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
-    
-    <!-- Styles -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    fontFamily: { sans: ['Inter', 'sans-serif'] },
-                    colors: {
-                        brand: { 50: '#f0f4ff', 100: '#e0e9ff', 500: '#3b82f6', 600: '#2563eb', 900: '#1e3a8a' },
-                        slate: { 850: '#162032', 900: '#0f172a' }
-                    }
-                }
-            }
-        }
-    </script>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <link rel="stylesheet" href="style.css?v=4">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Nexus Router · Route planner</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..24,400,0..1,0&display=block">
+
+<script>
+(function(){var t=null;try{t=localStorage.getItem('nexus.theme')}catch(e){}
+var d=t?t==='dark':window.matchMedia('(prefers-color-scheme: dark)').matches;
+document.documentElement.classList.toggle('dark',d);})();
+</script>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  darkMode: 'class',
+  theme: { extend: {
+    fontFamily: { sans:['Inter','ui-sans-serif','system-ui','Segoe UI','sans-serif'],
+                  mono:['ui-monospace','SFMono-Regular','Cascadia Mono','Consolas','monospace'] },
+    colors: {
+      bg:'rgb(var(--bg) / <alpha-value>)', surface:'rgb(var(--surface) / <alpha-value>)',
+      'surface-2':'rgb(var(--surface-2) / <alpha-value>)', 'surface-3':'rgb(var(--surface-3) / <alpha-value>)',
+      line:'rgb(var(--border) / <alpha-value>)', 'line-strong':'rgb(var(--border-strong) / <alpha-value>)',
+      ink:'rgb(var(--text) / <alpha-value>)', 'ink-muted':'rgb(var(--text-muted) / <alpha-value>)', 'ink-subtle':'rgb(var(--text-subtle) / <alpha-value>)',
+      accent:{ DEFAULT:'rgb(var(--accent) / <alpha-value>)', hover:'rgb(var(--accent-hover) / <alpha-value>)',
+               subtle:'rgb(var(--accent-subtle) / <alpha-value>)', text:'rgb(var(--accent-text) / <alpha-value>)',
+               contrast:'rgb(var(--accent-contrast) / <alpha-value>)' },
+      success:{ DEFAULT:'rgb(var(--success) / <alpha-value>)', subtle:'rgb(var(--success-subtle) / <alpha-value>)' },
+      warning:{ DEFAULT:'rgb(var(--warning) / <alpha-value>)', subtle:'rgb(var(--warning-subtle) / <alpha-value>)' },
+      danger:{ DEFAULT:'rgb(var(--danger) / <alpha-value>)', subtle:'rgb(var(--danger-subtle) / <alpha-value>)', fill:'rgb(var(--danger-fill) / <alpha-value>)' },
+      focus:'rgb(var(--focus) / <alpha-value>)'
+    },
+    fontSize: { '2xs':['11px','16px'], xs:['12px','16px'], sm:['13px','20px'], base:['14px','20px'], lg:['16px','24px'], xl:['20px','28px'] },
+    borderRadius: { sm:'4px', DEFAULT:'6px', md:'6px', lg:'8px', xl:'12px' },
+    boxShadow: { sm:'var(--shadow-sm)', md:'var(--shadow-md)', lg:'var(--shadow-lg)' },
+    transitionDuration: { fast:'120ms', DEFAULT:'180ms' },
+    transitionTimingFunction: { DEFAULT:'cubic-bezier(.2,0,0,1)' }
+  } }
+}
+</script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="style.css?v=24">
 </head>
-<body class="h-screen w-screen flex bg-slate-50 font-sans overflow-hidden text-slate-800">
+<body class="app bg-bg text-ink font-sans text-sm antialiased">
 
-    <!-- Left Sidebar -->
-    <aside class="w-[360px] bg-white border-r border-slate-200 flex flex-col h-full shadow-[4px_0_24px_rgba(0,0,0,0.02)] z-10 relative">
-        
-        <!-- Header / Logo -->
-        <div class="h-16 flex items-center px-6 border-b border-slate-100 bg-white">
-            <div class="w-8 h-8 rounded-lg bg-brand-600 flex items-center justify-center mr-3 shadow-sm shadow-brand-500/30">
-                <span class="material-symbols-rounded text-white text-[20px]">route</span>
-            </div>
-            <div>
-                <h1 class="text-[15px] font-bold text-slate-900 tracking-tight leading-tight">Nexus Router</h1>
-                <p class="text-[11px] font-medium text-slate-400 tracking-wide uppercase">Enterprise Global Engine</p>
-            </div>
+<a id="skip-link" class="skip-link" href="#route-steps">Skip to itinerary</a>
+
+<!-- ============ Top bar ============ -->
+<header id="topbar">
+  <div class="tb-left">
+    <div id="brand">
+      <span class="brand-tile" aria-hidden="true"><span class="icon">route</span></span>
+      <div class="brand-text"><h1 class="brand-name">Nexus Router</h1><span id="brand-subtitle">Route planner</span></div>
+    </div>
+    <span class="tb-divider tb-divider--brand" aria-hidden="true"></span>
+    <label class="sr-only" for="city-selector">Region</label>
+    <select id="city-selector" class="select"></select>
+    <span id="region-status" class="chip"></span>
+    <button id="btn-plan-toggle" type="button" class="btn btn-ghost tb-toggle" aria-expanded="false" aria-controls="plan-panel" data-tip="Show plan" data-kbd="[">
+      <span class="icon" aria-hidden="true">tune</span><span>Plan</span><span id="plan-toggle-count" class="count-badge">0</span>
+    </button>
+    <button id="btn-results-toggle" type="button" class="btn btn-ghost tb-toggle" aria-expanded="false" aria-controls="results-panel" data-tip="Show itinerary" data-kbd="]">
+      <span class="icon" aria-hidden="true">format_list_numbered</span><span>Itinerary</span><span class="toggle-dot" hidden></span>
+    </button>
+  </div>
+  <div class="tb-right">
+    <button id="status-pill" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="status-popover">
+      <span class="dot" aria-hidden="true"></span><span class="pill-label">Checking…</span>
+    </button>
+    <span class="tb-divider tb-divider--tools" aria-hidden="true"></span>
+    <div class="tb-tools">
+      <button id="btn-history" type="button" class="icon-btn" aria-label="Run history" data-tip="Run history">
+        <span class="icon" aria-hidden="true">history</span><span id="history-count" class="count-badge count-badge--corner" hidden>0</span>
+      </button>
+      <button id="btn-engine-info" type="button" class="icon-btn" aria-label="About the routing engine" data-tip="">
+        <span class="icon" aria-hidden="true">info</span>
+      </button>
+      <a id="link-github" class="icon-btn" href="https://github.com/NaminduNadeeshan/route-optimizer-colombo" target="_blank" rel="noopener noreferrer" aria-label="Source code on GitHub (opens in new tab)" data-tip="Source code on GitHub">
+        <svg class="gh-mark" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+      </a>
+      <button id="btn-theme" type="button" class="icon-btn" aria-label="Switch to dark theme" data-tip="">
+        <span class="icon" aria-hidden="true">dark_mode</span>
+      </button>
+      <button id="btn-shortcuts" type="button" class="icon-btn" aria-label="Keyboard shortcuts" data-tip="" data-kbd="?">
+        <span class="icon" aria-hidden="true">keyboard</span>
+      </button>
+    </div>
+    <button id="btn-more" type="button" class="icon-btn" aria-label="More actions" aria-haspopup="menu" aria-expanded="false" aria-controls="more-menu">
+      <span class="icon" aria-hidden="true">more_vert</span>
+    </button>
+    <span class="tb-divider tb-divider--opt" aria-hidden="true"></span>
+    <button id="btn-optimize" type="button" class="btn btn-primary btn-lg" aria-describedby="optimize-reason">
+      <span class="opt-icon" aria-hidden="true"><span class="icon">route</span></span><span id="optimize-label">Optimize route</span><kbd id="optimize-kbd" class="kbd kbd--on-accent">Ctrl ↵</kbd>
+    </button>
+    <span id="optimize-reason" class="sr-only"></span>
+  </div>
+</header>
+
+<div id="status-popover" class="popover" role="dialog" aria-labelledby="status-popover-title" hidden>
+  <div class="popover-head"><h2 id="status-popover-title" class="popover-title">Service status</h2></div>
+  <ul id="status-rows" class="status-rows"></ul>
+  <div class="popover-foot">
+    <p id="status-checked" class="text-xs text-ink-muted">Not checked yet</p>
+    <button id="btn-status-recheck" type="button" class="btn btn-secondary btn-sm"><span class="icon icon-16" aria-hidden="true">refresh</span><span>Recheck</span></button>
+  </div>
+</div>
+
+<div id="more-menu" class="menu" role="menu" aria-labelledby="btn-more" hidden>
+  <button type="button" role="menuitem" tabindex="-1" data-menu="history"><span class="icon" aria-hidden="true">history</span><span>Run history</span></button>
+  <button type="button" role="menuitem" tabindex="-1" data-menu="engine"><span class="icon" aria-hidden="true">info</span><span>About the routing engine</span></button>
+  <a role="menuitem" tabindex="-1" data-menu="github" href="https://github.com/NaminduNadeeshan/route-optimizer-colombo" target="_blank" rel="noopener noreferrer"><span class="icon" aria-hidden="true">open_in_new</span><span>Source code on GitHub</span></a>
+  <button type="button" role="menuitem" tabindex="-1" data-menu="theme"><span class="icon" aria-hidden="true">dark_mode</span><span id="menu-theme-label">Switch to dark theme</span></button>
+  <button type="button" role="menuitem" tabindex="-1" data-menu="shortcuts"><span class="icon" aria-hidden="true">keyboard</span><span>Keyboard shortcuts</span></button>
+</div>
+
+<!-- ============ Plan panel ============ -->
+<aside id="plan-panel" class="panel" aria-labelledby="plan-title">
+  <div class="panel-header">
+    <h2 id="plan-title" class="panel-title" tabindex="-1">Plan</h2>
+    <button id="btn-plan-close" type="button" class="icon-btn" aria-label="Collapse plan panel" data-tip="" data-kbd="[">
+      <span class="icon" aria-hidden="true">left_panel_close</span>
+    </button>
+  </div>
+  <div class="panel-body">
+    <section id="schedule-section" class="plan-section">
+      <fieldset>
+        <legend class="section-title">Schedule</legend>
+        <div class="field">
+          <label for="planning-date" class="field-label">Date</label>
+          <input type="date" id="planning-date" class="input">
         </div>
-
-        <div class="flex-1 overflow-y-auto overflow-x-hidden p-6 custom-scrollbar">
-            
-            <!-- Context Configuration -->
-            <div class="mb-6">
-                <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Operating Region</h2>
-                <div class="relative">
-                    <span class="material-symbols-rounded absolute left-3 top-2.5 text-slate-400 text-[20px]">public</span>
-                    <select id="city-selector" class="w-full bg-slate-50 border border-slate-200 text-slate-800 text-sm font-semibold rounded-xl pl-10 pr-8 py-2.5 outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all appearance-none shadow-sm cursor-pointer hover:bg-slate-100">
-                        <option value="beijing" selected>🇨🇳 Beijing (T-Drive Data)</option>
-                        <option value="colombo">🇱🇰 Colombo (Local Data)</option>
-                        <option value="porto">🇵🇹 Porto (Euro Data)</option>
-                        <option value="california">🇺🇸 California (PeMS04)</option>
-                    </select>
-                    <span class="material-symbols-rounded absolute right-3 top-3 text-slate-400 text-[18px] pointer-events-none">expand_more</span>
-                </div>
-            </div>
-
-            <!-- Schedule Configuration -->
-            <div class="mb-8">
-                <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Planning Schedule</h2>
-                
-                <div class="mb-3 relative">
-                    <label for="planning-date" class="block text-[10px] font-semibold text-slate-500 absolute -top-2 left-2 bg-white px-1 z-10">Date</label>
-                    <input type="date" id="planning-date" class="w-full bg-transparent border border-slate-200 text-slate-700 text-sm font-medium rounded-xl px-3 py-2 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all shadow-sm">
-                </div>
-
-                <div class="flex space-x-3">
-                    <div class="flex-1 relative">
-                        <label for="start-time" class="block text-[10px] font-semibold text-slate-500 absolute -top-2 left-2 bg-white px-1 z-10">Start</label>
-                        <input type="time" id="start-time" value="09:00" class="w-full bg-transparent border border-slate-200 text-slate-700 text-sm font-medium rounded-xl px-3 py-2 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all shadow-sm">
-                    </div>
-                    <div class="flex-1 relative">
-                        <label for="end-time" class="block text-[10px] font-semibold text-slate-500 absolute -top-2 left-2 bg-white px-1 z-10">Deadline</label>
-                        <input type="time" id="end-time" value="17:00" class="w-full bg-transparent border border-slate-200 text-slate-700 text-sm font-medium rounded-xl px-3 py-2 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all shadow-sm">
-                    </div>
-                </div>
-            </div>
-
-            <!-- Dashboard KPIs -->
-            <div class="mb-8">
-                <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Telemetry Stats</h2>
-                <div class="grid grid-cols-2 gap-3">
-                    <div class="bg-slate-50 border border-slate-100 rounded-xl p-3 flex flex-col">
-                        <div class="flex items-center text-slate-500 mb-1">
-                            <span class="material-symbols-rounded text-[16px] mr-1.5">local_shipping</span>
-                            <span class="text-xs font-medium">Deliveries</span>
-                        </div>
-                        <span id="val-drops" class="text-xl font-bold text-slate-800">0</span>
-                    </div>
-                    <div class="bg-slate-50 border border-slate-100 rounded-xl p-3 flex flex-col relative">
-                        <div class="flex items-center text-slate-500 mb-1">
-                            <span class="material-symbols-rounded text-[16px] mr-1.5">route</span>
-                            <span class="text-xs font-medium">Distance</span>
-                        </div>
-                        <div class="flex items-end space-x-2">
-                            <span id="val-dist" class="text-xl font-bold text-slate-800">0 km</span>
-                            <span id="val-dist-old" class="text-xs font-medium text-slate-400 line-through mb-1 hidden">0 km</span>
-                        </div>
-                        <div id="badge-dist-save" class="absolute top-2 right-2 bg-emerald-100 text-emerald-700 text-[10px] font-bold px-1.5 py-0.5 rounded-md hidden">-0 km</div>
-                    </div>
-                    <div class="col-span-2 bg-brand-50 border border-brand-100 rounded-xl p-3 flex flex-col relative">
-                        <div class="flex items-center justify-between mb-2">
-                            <div class="flex items-center text-brand-700">
-                                <span class="material-symbols-rounded text-[18px] mr-1.5">schedule</span>
-                                <span class="text-sm font-semibold">Total Shift Time</span>
-                            </div>
-                            <div id="badge-time-save" class="bg-emerald-500 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow-sm hidden">Saved 0 min</div>
-                        </div>
-                        
-                        <div class="flex items-end space-x-2 mb-3">
-                            <span id="val-time" class="text-2xl font-bold text-brand-700 tracking-tight">0 min</span>
-                            <span id="val-time-old" class="text-xs font-medium text-brand-400/70 line-through mb-1 hidden">0 min</span>
-                        </div>
-                        
-                        <div class="flex items-center justify-between border-t border-brand-200/50 pt-2 mt-1">
-                            <div class="flex flex-col">
-                                <span class="text-[10px] text-brand-600/80 font-bold uppercase tracking-wide">Driving</span>
-                                <span id="val-time-driving" class="text-sm font-bold text-brand-700">0 min</span>
-                            </div>
-                            <div class="h-6 w-px bg-brand-200/50"></div>
-                            <div class="flex flex-col">
-                                <span class="text-[10px] text-brand-600/80 font-bold uppercase tracking-wide">Wait Time</span>
-                                <span id="val-time-service" class="text-sm font-bold text-brand-700">0 min</span>
-                            </div>
-                            <div class="h-6 w-px bg-brand-200/50"></div>
-                            <div class="flex flex-col">
-                                <span class="text-[10px] text-rose-500/80 font-bold uppercase tracking-wide">Unassigned</span>
-                                <span id="val-unassigned" class="text-sm font-bold text-rose-600">0 drops</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Route Sequence -->
-            <div>
-                <div class="flex items-center justify-between mb-3 border-b border-slate-100 pb-2">
-                    <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider">Turn-by-turn Sequence</h2>
-                    <span class="material-symbols-rounded text-slate-300 text-[18px]">list_alt</span>
-                </div>
-                
-                <div id="route-steps" class="space-y-0 relative">
-                    <!-- Placeholder State -->
-                    <div class="text-center py-8 opacity-50" id="empty-state">
-                        <span class="material-symbols-rounded text-4xl text-slate-300 mb-2">touch_app</span>
-                        <p class="text-sm font-medium text-slate-500">Tap the map to add delivery points.</p>
-                        <p class="text-xs text-slate-400 mt-1">1st pin is your logistics depot.</p>
-                    </div>
-                    <!-- Sequence steps injected here -->
-                </div>
-            </div>
-            
+        <div class="grid grid-cols-2 gap-3 mt-3">
+          <div class="field">
+            <label for="start-time" class="field-label">Start</label>
+            <input type="time" id="start-time" class="input" value="09:00">
+          </div>
+          <div class="field">
+            <label for="end-time" class="field-label">Deadline</label>
+            <input type="time" id="end-time" class="input" value="17:00">
+          </div>
         </div>
-        
-        <!-- Sidebar Footer Actions -->
-        <div class="p-4 border-t border-slate-100 bg-slate-50/50 flex flex-col gap-3">
-            <button id="btn-optimize" class="w-full bg-slate-900 hover:bg-slate-800 text-white rounded-xl py-3 px-4 font-semibold text-sm shadow-md shadow-slate-900/20 transition-all flex justify-center items-center group">
-                <span class="material-symbols-rounded text-[18px] mr-2 group-hover:animate-pulse">rocket_launch</span>
-                Compute Optimal Route
-            </button>
-            
-            <!-- Open Source Details -->
-            <div class="flex items-center justify-between mt-1 px-1">
-                <a href="https://github.com/NaminduNadeeshan/route-optimizer-colombo" target="_blank" class="text-[11px] font-bold text-slate-500 hover:text-brand-600 flex items-center transition-colors">
-                    <svg class="w-3.5 h-3.5 mr-1.5 fill-current" viewBox="0 0 24 24"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
-                    Open Source
-                </a>
-                <button onclick="document.getElementById('tech-modal').classList.remove('hidden')" class="text-[11px] font-bold text-slate-500 hover:text-brand-600 flex items-center transition-colors">
-                    <span class="material-symbols-rounded text-[14px] mr-1">code_blocks</span>
-                    Engine Specs
-                </button>
-            </div>
-        </div>
-    </aside>
+        <p id="window-readout" class="text-xs text-ink-muted mt-2 tabular-nums"></p>
+        <p id="schedule-hint" class="schedule-hint" aria-live="polite"></p>
+      </fieldset>
+    </section>
 
-    <!-- Map Area -->
-    <main class="flex-1 relative h-full w-full bg-slate-100">
-        
-        <div id="map" class="absolute inset-0 z-0"></div>
-        
-        <!-- Loading Overlay -->
-        <div id="loading-overlay" class="absolute inset-0 bg-slate-900/30 backdrop-blur-sm z-[1000] hidden flex-col justify-center items-center transition-all duration-300">
-            <div class="bg-white rounded-2xl shadow-2xl p-6 flex flex-col items-center min-w-[240px]">
-                <div class="relative w-12 h-12 mb-4">
-                    <div class="absolute inset-0 border-4 border-slate-100 rounded-full"></div>
-                    <div class="absolute inset-0 border-4 border-brand-600 rounded-full border-t-transparent animate-spin"></div>
-                </div>
-                <h3 class="font-bold text-slate-800 text-lg">Optimizing Route</h3>
-                <p class="text-xs text-slate-500 mt-1">Querying ST-GAT Engine & VROOM...</p>
-            </div>
-        </div>
-        
-        <!-- Map Floating Controls -->
-        <div class="absolute top-6 right-6 z-[400] flex flex-col gap-3">
-            <button id="btn-export" class="bg-white text-slate-600 hover:text-brand-600 w-10 h-10 rounded-xl shadow-lg border border-slate-100 flex items-center justify-center transition-colors group" title="Export Pins JSON">
-                <span class="material-symbols-rounded text-[22px]">download</span>
-            </button>
-            <button id="btn-import" class="bg-white text-slate-600 hover:text-brand-600 w-10 h-10 rounded-xl shadow-lg border border-slate-100 flex items-center justify-center transition-colors group" title="Import Pins JSON">
-                <span class="material-symbols-rounded text-[22px]">upload</span>
-            </button>
-            <button id="btn-clear" class="bg-white text-slate-600 hover:text-red-600 w-10 h-10 rounded-xl shadow-lg border border-slate-100 flex items-center justify-center transition-colors group" title="Clear Map">
-                <span class="material-symbols-rounded text-[22px]">delete</span>
-            </button>
-            <input type="file" id="file-import" accept=".json" class="hidden">
-        </div>
-        
-        <!-- Logo Watermark on Map -->
-        <div class="absolute bottom-6 right-6 z-[400] opacity-70 pointer-events-none flex items-center bg-white/80 backdrop-blur-md px-3 py-1.5 rounded-lg shadow-sm border border-white">
-            <span class="material-symbols-rounded text-brand-600 text-[18px] mr-1.5">memory</span>
-            <span class="text-xs font-bold text-slate-800 tracking-tight">ST-GAT NEURAL ENGINE</span>
-        </div>
-        
-        <!-- Engine Specs Modal -->
-        <div id="tech-modal" class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm z-[2000] hidden flex items-center justify-center p-6">
-            <div class="bg-white w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-full">
-                <!-- Header -->
-                <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
-                    <div class="flex items-center">
-                        <div class="w-8 h-8 rounded-lg bg-slate-900 flex items-center justify-center mr-3">
-                            <span class="material-symbols-rounded text-white text-[18px]">account_tree</span>
-                        </div>
-                        <div>
-                            <h2 class="text-base font-bold text-slate-800">Open Source Neural Architecture</h2>
-                            <p class="text-xs font-medium text-slate-500">Colombo ST-GAT Route Optimizer</p>
-                        </div>
-                    </div>
-                    <button onclick="document.getElementById('tech-modal').classList.add('hidden')" class="text-slate-400 hover:text-slate-700 transition-colors">
-                        <span class="material-symbols-rounded">close</span>
-                    </button>
-                </div>
-                
-                <!-- Body -->
-                <div class="p-6 overflow-y-auto">
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        
-                        <!-- Neural Engine -->
-                        <div class="bg-brand-50/50 border border-brand-100 rounded-xl p-4">
-                            <div class="flex items-center mb-3">
-                                <span class="material-symbols-rounded text-brand-600 mr-2">hub</span>
-                                <h3 class="font-bold text-brand-900 text-sm">Deep ST-GAT Neural Net</h3>
-                            </div>
-                            <p class="text-[11px] text-slate-600 leading-relaxed mb-3">
-                                A custom PyTorch Spatial-Temporal Graph Attention Network trained natively on 17,236 real Colombo OSM road edges. It calculates traffic congestion via topological relationships.
-                            </p>
-                            <ul class="text-[11px] text-brand-700 font-medium space-y-1">
-                                <li>• Double-layer Temporal GRUs</li>
-                                <li>• 2-Hop Spatial Attention (GAT)</li>
-                                <li>• Layer Normalization & Dropout</li>
-                                <li>• 3.27 km/h Mean Absolute Error</li>
-                            </ul>
-                        </div>
-                        
-                        <!-- Event Synthesizer -->
-                        <div class="bg-amber-50/50 border border-amber-100 rounded-xl p-4">
-                            <div class="flex items-center mb-3">
-                                <span class="material-symbols-rounded text-amber-600 mr-2">calendar_month</span>
-                                <h3 class="font-bold text-amber-900 text-sm">Chronological Event Synthesizer</h3>
-                            </div>
-                            <p class="text-[11px] text-slate-600 leading-relaxed mb-3">
-                                The AI doesn't just guess traffic—it predicts it based on cultural events using a robust 6-feature tensor encompassing 365 days of Colombo patterns.
-                            </p>
-                            <ul class="text-[11px] text-amber-700 font-medium space-y-1">
-                                <li>• Sinhala & Tamil New Year (Avurudu)</li>
-                                <li>• Monthly Poya Day Traffic Shifts</li>
-                                <li>• Long Weekend Outbound Exodus</li>
-                            </ul>
-                        </div>
-                        
-                        <!-- VROOM Solver -->
-                        <div class="bg-emerald-50/50 border border-emerald-100 rounded-xl p-4 md:col-span-2">
-                            <div class="flex items-center mb-3">
-                                <span class="material-symbols-rounded text-emerald-600 mr-2">calculate</span>
-                                <h3 class="font-bold text-emerald-900 text-sm">C++ VROOM Micro-Routing Engine</h3>
-                            </div>
-                            <p class="text-[11px] text-slate-600 leading-relaxed">
-                                Once the Neural Network overwrites the OSRM speeds, the C++ VROOM engine computes the optimal Traveling Salesperson path within milliseconds. It explicitly respects the 8-hour motorcycle shift constraints and a realistic 3-minute physical drop-off service time per delivery.
-                            </p>
-                        </div>
-                        
-                    </div>
-                </div>
-            </div>
-        </div>
-    </main>
+    <section id="vehicle-section" class="plan-section">
+      <h3 class="section-title">Vehicle</h3>
+      <p class="vehicle-row"><span class="icon icon-16" aria-hidden="true">two_wheeler</span><span>Motorcycle · Demo rider #99 · 3 min service per stop</span></p>
+    </section>
 
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://unpkg.com/leaflet-polylinedecorator@1.6.0/dist/leaflet.polylineDecorator.js"></script>
-    <script src="app.js?v=12"></script>
+    <section id="stops-section" class="plan-section" aria-labelledby="stops-heading">
+      <div class="section-head">
+        <h3 id="stops-heading" class="section-title">Stops</h3>
+        <span id="stops-count" class="text-xs text-ink-muted tabular-nums"></span>
+      </div>
+      <div class="stops-toolbar">
+        <button id="btn-import" type="button" class="btn btn-secondary btn-sm"><span class="icon icon-16" aria-hidden="true">upload</span><span>Import</span></button>
+        <button id="btn-export" type="button" class="btn btn-secondary btn-sm"><span class="icon icon-16" aria-hidden="true">download</span><span>Export</span></button>
+        <button id="btn-clear" type="button" class="btn btn-danger-ghost btn-sm"><span class="icon icon-16" aria-hidden="true">delete_sweep</span><span>Clear all</span></button>
+      </div>
+      <input type="file" id="file-import" accept=".json,application/json" hidden>
+      <form id="add-coords-form" class="add-coords" novalidate>
+        <label for="add-coords" class="field-label">Add by coordinates</label>
+        <div class="add-coords-row">
+          <input id="add-coords" class="input" type="text" autocomplete="off" spellcheck="false" placeholder="lat, lon — e.g. 6.9271, 79.8612" aria-describedby="add-coords-error">
+          <button id="btn-add-coords" type="submit" class="btn btn-secondary">Add</button>
+        </div>
+        <p id="add-coords-error" class="field-error" hidden></p>
+      </form>
+      <ul id="stops-list" class="stops-list" aria-labelledby="stops-heading"></ul>
+      <div id="stops-empty" class="empty">
+        <span class="icon empty-icon" aria-hidden="true">add_location_alt</span>
+        <p class="empty-title">No stops yet</p>
+        <p class="empty-body">Click the map to place the depot — the first pin is always the depot — or add one by coordinates.</p>
+      </div>
+    </section>
+  </div>
+  <p id="plan-hint" class="panel-footer">Click the map to add stops · first pin is the depot · drag pins to move</p>
+</aside>
+
+<!-- ============ Workspace ============ -->
+<main id="workspace">
+  <section id="kpi-strip" aria-labelledby="kpi-title">
+    <div class="kpi-head">
+      <h2 id="kpi-title" class="kpi-title">Route summary</h2>
+      <p id="kpi-compact" class="kpi-compact tabular-nums"></p>
+      <div class="kpi-chips">
+        <span id="chip-traffic" class="chip chip--neutral" hidden></span>
+        <span id="chip-baseline" class="chip chip--neutral" tabindex="0" data-tip="Same stops driven in the order you added them, with the same 3-minute stops." hidden>Baseline: entered order</span>
+        <span id="chip-stale" class="chip chip--warning" hidden><span class="icon icon-16" aria-hidden="true">history_toggle_off</span>Out of date</span>
+      </div>
+      <button id="btn-kpi-expand" type="button" class="icon-btn" aria-expanded="false" aria-controls="kpi-tiles" aria-label="Show route summary details">
+        <span class="icon" aria-hidden="true">expand_more</span>
+      </button>
+    </div>
+    <div id="kpi-tiles" class="kpi-grid">
+      <article id="kpi-stops" class="tile" aria-labelledby="kpi-stops-label">
+        <div class="tile-label"><span class="icon icon-16" aria-hidden="true">pin_drop</span><span id="kpi-stops-label" class="tile-label-text">Stops scheduled</span></div>
+        <div class="tile-value"><span id="val-drops" class="tile-num">0</span></div>
+        <p id="kpi-stops-sub" class="tile-sub">Not optimized yet</p>
+      </article>
+      <article id="kpi-distance" class="tile" aria-labelledby="kpi-distance-label">
+        <div class="tile-label"><span class="icon icon-16" aria-hidden="true">straighten</span><span id="kpi-distance-label" class="tile-label-text">Distance</span></div>
+        <div class="tile-value"><span id="val-dist" class="tile-num">—</span><s id="val-dist-old" class="tile-old" hidden></s></div>
+        <div class="tile-sub"><span id="badge-dist-save" class="chip chip--success" hidden></span><span id="kpi-distance-note"></span></div>
+      </article>
+      <article id="kpi-time" class="tile" aria-labelledby="kpi-time-label">
+        <div class="tile-label"><span class="icon icon-16" aria-hidden="true">schedule</span><span id="kpi-time-label" class="tile-label-text">Route time</span><span id="badge-time-save" class="chip chip--success tile-badge" hidden></span></div>
+        <div class="tile-value"><span id="val-time" class="tile-num">—</span><s id="val-time-old" class="tile-old" hidden></s></div>
+        <div id="shift-bar" class="shift-bar" aria-hidden="true"><span id="shift-bar-drive" class="shift-bar-drive"></span><span id="shift-bar-service" class="shift-bar-service"></span></div>
+        <p class="tile-sub kv-list" id="kpi-time-breakdown"><span class="kv kv--sep">Drive <span id="val-time-driving" class="tabular-nums">—</span></span><span class="kv">Service <span id="val-time-service" class="tabular-nums">—</span></span><span class="kv kv--row">Unassigned <span id="val-unassigned" class="tabular-nums">—</span></span></p>
+      </article>
+      <article id="kpi-return" class="tile" aria-labelledby="kpi-return-label">
+        <div class="tile-label"><span class="icon icon-16" aria-hidden="true">keyboard_return</span><span id="kpi-return-label" class="tile-label-text">Back at depot</span></div>
+        <div class="tile-value"><span id="val-return" class="tile-num">—</span></div>
+        <p id="val-slack" class="tile-sub kv-list">Shift window not used yet</p>
+        <div id="util-meter" class="util-meter" aria-hidden="true"><span></span></div>
+      </article>
+    </div>
+  </section>
+
+  <div id="map-wrap">
+    <div id="map" role="region" aria-label="Route map. Add stops by clicking the map or by coordinates in the Plan panel."></div>
+    <div id="map-overlay-top">
+      <div id="stale-banner" class="map-card banner" role="status" hidden></div>
+      <div id="progress-card" class="map-card progress-card" hidden></div>
+      <div id="map-hint" class="map-card map-hint" hidden></div>
+    </div>
+    <div id="layers-popover" class="popover layers-popover" role="dialog" aria-labelledby="layers-title" hidden>
+      <h2 id="layers-title" class="popover-title">Map layers</h2>
+      <label class="radio-row layers-check"><input type="checkbox" id="opt-arrows"><span>Direction arrows</span></label>
+      <p class="layers-note">Map tiles: OpenStreetMap</p>
+    </div>
+    <div id="map-legend" class="map-legend"></div>
+    <button id="btn-plan-expand" type="button" class="edge-tab edge-tab--left" aria-label="Expand plan panel" data-tip="" data-kbd="[" hidden>
+      <span class="icon" aria-hidden="true">chevron_right</span>
+    </button>
+    <button id="btn-results-expand" type="button" class="edge-tab edge-tab--right" aria-label="Expand itinerary panel" data-tip="" data-kbd="]" hidden>
+      <span class="icon" aria-hidden="true">chevron_left</span>
+    </button>
+  </div>
+</main>
+
+<!-- ============ Results panel ============ -->
+<aside id="results-panel" class="panel" aria-labelledby="results-title">
+  <div class="panel-header">
+    <div class="panel-header-text">
+      <h2 id="results-title" class="panel-title" tabindex="-1">Itinerary</h2>
+      <p id="results-meta" class="results-meta tabular-nums"></p>
+    </div>
+    <button id="btn-export-csv" type="button" class="btn btn-secondary btn-sm" aria-disabled="true" data-tip="Optimize a route first">
+      <span class="icon icon-16" aria-hidden="true">download</span><span>CSV</span>
+    </button>
+    <button id="btn-results-close" type="button" class="icon-btn" aria-label="Collapse itinerary panel" data-tip="" data-kbd="]">
+      <span class="icon" aria-hidden="true">right_panel_close</span>
+    </button>
+  </div>
+  <div class="results-callouts">
+    <div id="results-alert" class="alert" role="alert" hidden></div>
+    <div id="results-partial" class="callout callout--danger" hidden></div>
+    <div id="results-stale" class="callout callout--warning" hidden></div>
+  </div>
+  <div class="panel-body results-body">
+    <ol id="route-steps" class="route-steps" tabindex="-1" aria-label="Route stops in visit order"></ol>
+    <section id="unassigned-section" class="unassigned" aria-labelledby="unassigned-title" hidden>
+      <h3 id="unassigned-title" class="unassigned-title" tabindex="0" data-tip="Didn't fit the shift window or the vehicle's capacity.">Not scheduled (0)</h3>
+      <ul id="unassigned-list" class="unassigned-list"></ul>
+    </section>
+    <div id="results-empty" class="empty"></div>
+  </div>
+</aside>
+
+<!-- ============ Mobile action bar ============ -->
+<nav id="mobile-bar" aria-label="Mobile actions">
+  <button id="btn-sheet-plan" type="button" class="mb-btn" aria-expanded="false" aria-controls="plan-panel">
+    <span class="icon" aria-hidden="true">tune</span><span>Plan</span><span id="sheet-plan-count" class="count-badge">0</span>
+  </button>
+  <button id="btn-sheet-results" type="button" class="mb-btn" aria-expanded="false" aria-controls="results-panel">
+    <span class="icon" aria-hidden="true">format_list_numbered</span><span>Itinerary</span><span class="toggle-dot" hidden></span>
+  </button>
+  <button id="btn-optimize-mobile" type="button" class="btn btn-primary" aria-describedby="optimize-reason">
+    <span class="opt-icon" aria-hidden="true"><span class="icon">route</span></span><span class="opt-label">Optimize route</span>
+  </button>
+</nav>
+
+<div id="toast-region" aria-live="polite" aria-relevant="additions"></div>
+<div id="sr-live" class="sr-only" aria-live="polite"></div>
+<div id="tooltip" role="tooltip" hidden></div>
+
+<!-- ============ Dialogs ============ -->
+<dialog id="history-drawer" class="dlg dlg--drawer" aria-labelledby="history-title">
+  <div class="dlg-inner">
+    <div class="dlg-head">
+      <h2 id="history-title" class="dlg-title">Run history</h2>
+      <button type="button" class="icon-btn dlg-close" data-close aria-label="Close run history"><span class="icon" aria-hidden="true">close</span></button>
+    </div>
+    <div class="dlg-body">
+      <p id="history-unavailable" class="empty-body" hidden>History isn't available in this browser (storage is blocked).</p>
+      <p id="history-empty" class="empty-body" hidden>Runs you optimize are saved here, in this browser only.</p>
+      <ul id="history-list" class="history-list"></ul>
+    </div>
+    <div class="dlg-foot">
+      <p class="text-xs text-ink-muted">Saved in this browser only · last 20 runs</p>
+      <button id="btn-history-clear" type="button" class="btn btn-danger-ghost btn-sm">Clear history</button>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="engine-dialog" class="dlg" aria-labelledby="engine-title">
+  <div class="dlg-inner">
+    <div class="dlg-head">
+      <div>
+        <h2 id="engine-title" class="dlg-title">How routes are computed</h2>
+        <p class="text-sm text-ink-muted">What this deployment runs.</p>
+      </div>
+      <button type="button" class="icon-btn dlg-close" data-close aria-label="Close"><span class="icon" aria-hidden="true">close</span></button>
+    </div>
+    <div class="dlg-body engine-body">
+      <section class="engine-sec">
+        <h3 class="engine-h"><span class="icon icon-16" aria-hidden="true">alt_route</span>Routing</h3>
+        <p>Travel times come from OSRM (MLD) with a motorcycle profile tuned for Sri Lankan roads. The VROOM solver chooses a stop order that fits your shift window. Each drop includes a fixed 3-minute service time.</p>
+      </section>
+      <section class="engine-sec">
+        <h3 class="engine-h"><span class="icon icon-16" aria-hidden="true">hub</span>Traffic model (ST-GAT) <span class="chip chip--warning">Experimental</span></h3>
+        <p>2 graph-attention layers (4 heads, hidden size 16), a 2-layer GRU and an MLP head: 5,137 parameters, built with PyTorch Geometric.</p>
+      </section>
+      <section class="engine-sec">
+        <h3 class="engine-h"><span class="icon icon-16" aria-hidden="true">share_location</span>Road graph</h3>
+        <p>13,499 intersections and 17,236 directed road segments taken from OSRM routes across Colombo (real OpenStreetMap topology).</p>
+      </section>
+      <section class="engine-sec">
+        <h3 class="engine-h"><span class="icon icon-16" aria-hidden="true">dataset</span>Training data</h3>
+        <p>One synthetic year of hourly speeds (time-of-day curve, calendar effects and noise). Calendar inputs: weekend, long weekend, Poya day, pre-/post-Avurudu. Not yet trained on real fleet GPS data.</p>
+      </section>
+      <section class="engine-sec">
+        <h3 class="engine-h"><span class="icon icon-16" aria-hidden="true">swap_horiz</span>Fallback</h3>
+        <p>When the traffic model service is unavailable, routing uses static OSRM road speeds.</p>
+        <p id="engine-live" class="engine-live">Right now: status unknown.</p>
+      </section>
+      <section class="engine-sec">
+        <h3 class="engine-h"><span class="icon icon-16" aria-hidden="true">compare_arrows</span>Savings baseline</h3>
+        <p>Savings compare the optimized route with driving the same stops in the order you added them, with the same 3-minute stops. They're hidden when any stop couldn't be scheduled or when there's only one stop.</p>
+      </section>
+      <section class="engine-sec">
+        <h3 class="engine-h"><span class="icon icon-16" aria-hidden="true">rule</span>Limits</h3>
+        <p>One vehicle (demo rider #99) carrying up to 100 drops. Times are planning estimates.</p>
+      </section>
+    </div>
+    <div class="dlg-foot">
+      <a class="link" href="https://github.com/NaminduNadeeshan/route-optimizer-colombo" target="_blank" rel="noopener noreferrer">View source on GitHub<span class="sr-only"> (opens in new tab)</span></a>
+      <button type="button" class="btn btn-secondary" data-close data-autofocus>Close</button>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="confirm-dialog" class="dlg dlg--sm" aria-labelledby="confirm-title" aria-describedby="confirm-body">
+  <div class="dlg-inner">
+    <div class="dlg-head"><h2 id="confirm-title" class="dlg-title"></h2></div>
+    <div class="dlg-body"><p id="confirm-body" class="text-sm text-ink-muted"></p></div>
+    <div id="confirm-actions" class="dlg-foot dlg-foot--end"></div>
+  </div>
+</dialog>
+
+<dialog id="shortcuts-dialog" class="dlg dlg--sm" aria-labelledby="shortcuts-title">
+  <div class="dlg-inner">
+    <div class="dlg-head">
+      <h2 id="shortcuts-title" class="dlg-title">Keyboard shortcuts</h2>
+      <button type="button" class="icon-btn dlg-close" data-close aria-label="Close keyboard shortcuts"><span class="icon" aria-hidden="true">close</span></button>
+    </div>
+    <div class="dlg-body">
+      <label class="radio-row shortcuts-toggle"><input type="checkbox" id="opt-single-keys" checked><span>Single-key shortcuts (A, F, [, ], ?)</span></label>
+      <p class="text-xs text-ink-muted shortcuts-note">Turn these off if you use speech input or trigger them by accident. Shortcuts with <kbd class="kbd mod-key">Ctrl</kbd> keep working.</p>
+      <table class="kbd-table">
+        <tbody id="shortcuts-body">
+          <tr><td><kbd class="kbd mod-key">Ctrl</kbd> <kbd class="kbd">Enter</kbd></td><td>Optimize route (works inside inputs)</td></tr>
+          <tr><td><kbd class="kbd">Esc</kbd></td><td>Close popover, cancel run, close panel, clear selection</td></tr>
+          <tr><td><kbd class="kbd">A</kbd></td><td>Turn adding stops on or off</td></tr>
+          <tr><td><kbd class="kbd">F</kbd></td><td>Fit map to route or stops</td></tr>
+          <tr><td><kbd class="kbd">[</kbd> <kbd class="kbd">]</kbd></td><td>Toggle Plan / Itinerary panel</td></tr>
+          <tr><td><kbd class="kbd">Delete</kbd></td><td>Delete the focused stop</td></tr>
+          <tr><td><kbd class="kbd mod-key">Ctrl</kbd> <kbd class="kbd">Z</kbd></td><td>Undo the last change</td></tr>
+          <tr><td><kbd class="kbd">↑</kbd> <kbd class="kbd">↓</kbd></td><td>Move between itinerary rows</td></tr>
+          <tr><td><kbd class="kbd">?</kbd></td><td>Show this list</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</dialog>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet-polylinedecorator@1.6.0/dist/leaflet.polylineDecorator.js"></script>
+<script src="app.js?v=24"></script>
 </body>
 </html>

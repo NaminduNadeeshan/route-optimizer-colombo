@@ -6,6 +6,7 @@ from sklearn.cluster import DBSCAN
 import httpx
 import asyncpg
 import os
+import asyncio, time
 
 app = FastAPI(title="Motorcycle Route Optimizer API (Sri Lanka)")
 
@@ -15,6 +16,8 @@ DB_PASS = os.getenv("DB_PASS", "postgres")
 DB_HOST = os.getenv("DB_HOST", "route_db")
 DB_PORT = os.getenv("DB_PORT", "5432")
 DB_NAME = os.getenv("DB_NAME", "routing_db")
+
+SERVICE_SECONDS = 180  # per-drop service time: used by VROOM jobs AND the unoptimized baseline
 
 VROOM_URL = os.getenv("VROOM_URL", "http://route_vroom:3000")
 
@@ -146,7 +149,7 @@ async def optimize_route(payload: OptimizeRouteRequest):
                 "id": record["id"],
                 "location": [record["lon"], record["lat"]],
                 "delivery": [int(record["weight"])] if record["weight"] else [],
-                "service": 180  # Reduced to 3 minutes per drop-off (was 15 mins)
+                "service": SERVICE_SECONDS  # 3 minutes per drop-off
             } for record in records
         ],
         "options": {
@@ -213,8 +216,9 @@ async def optimize_route(payload: OptimizeRouteRequest):
                 osrm_data = osrm_resp.json()
                 if osrm_data.get("routes"):
                     unoptimized_distance = osrm_data["routes"][0].get("distance", 0)
-                    # Add 15 mins (900 seconds) of service time per job to match VROOM's duration logic
-                    unoptimized_duration = osrm_data["routes"][0].get("duration", 0) + (900 * len(payload.order_ids))
+                    # Add SERVICE_SECONDS per job actually in the baseline route (coords minus the two depot ends),
+                    # matching the service time VROOM uses for each job
+                    unoptimized_duration = osrm_data["routes"][0].get("duration", 0) + SERVICE_SECONDS * (len(coords) - 2)
     except Exception as e:
         print(f"Failed to fetch unoptimized baseline: {e}")
 
@@ -284,6 +288,62 @@ async def create_orders(payload: CreateOrdersRequest):
         return {"order_ids": order_ids}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database insert failed: {str(e)}")
+
+VROOM_COLOMBO_BASE = os.getenv("VROOM_COLOMBO_URL", "http://vroom_colombo:3000")
+VROOM_BEIJING_BASE = os.getenv("VROOM_BEIJING_URL", "http://vroom_beijing:3000")
+HEALTH_HTTP_PROBES = {
+    "osrm_colombo":  "http://route_osrm_colombo:5000/nearest/v1/driving/79.8612,6.9271",
+    "vroom_colombo": f"{VROOM_COLOMBO_BASE}/health",
+    "osrm_beijing":  "http://route_osrm_beijing:5000/nearest/v1/driving/116.4074,39.9042",
+    "vroom_beijing": f"{VROOM_BEIJING_BASE}/health",
+    "ml_bridge":     "http://host.docker.internal:8001/openapi.json",  # GET only. NEVER POST /update-traffic here.
+}
+PROBE_TIMEOUT_S = 1.2
+
+def _ms(t0): return round((time.perf_counter() - t0) * 1000)
+
+async def _probe_http(client, url):
+    t0 = time.perf_counter()
+    try:
+        r = await asyncio.wait_for(client.get(url), PROBE_TIMEOUT_S + 0.3)
+        ok = 200 <= r.status_code < 300
+        return {"ok": ok, "latency_ms": _ms(t0), "detail": "OK" if ok else f"HTTP {r.status_code}"}
+    except Exception as e:
+        return {"ok": False, "latency_ms": _ms(t0), "detail": f"Unreachable ({type(e).__name__})"}
+
+async def _probe_db():
+    t0 = time.perf_counter()
+    try:
+        if db_pool is None:
+            return {"ok": False, "latency_ms": None, "detail": "Connection pool not initialised"}
+        async def q():
+            async with db_pool.acquire() as c:
+                return await c.fetchval("SELECT 1")
+        await asyncio.wait_for(q(), 1.5)
+        return {"ok": True, "latency_ms": _ms(t0), "detail": "OK"}
+    except Exception as e:
+        return {"ok": False, "latency_ms": _ms(t0), "detail": f"Unreachable ({type(e).__name__})"}
+
+@app.get("/api/v1/health")
+async def health():
+    names = list(HEALTH_HTTP_PROBES)
+    try:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(PROBE_TIMEOUT_S, connect=1.0)) as client:
+            results = await asyncio.gather(_probe_db(), *[_probe_http(client, HEALTH_HTTP_PROBES[n]) for n in names])
+        services = {"db": results[0], **dict(zip(names, results[1:]))}
+    except Exception as e:  # never raise
+        services = {k: {"ok": False, "latency_ms": None, "detail": f"Health check error ({type(e).__name__})"} for k in ["db", *names]}
+    core_ok = all(services[k]["ok"] for k in ("db", "osrm_colombo", "vroom_colombo"))
+    return {
+        "status": "ok" if core_ok and services["ml_bridge"]["ok"] else "degraded",
+        "services": services,
+        "regions": {
+            "colombo":    {"available": core_ok},
+            "beijing":    {"available": services["db"]["ok"] and services["osrm_beijing"]["ok"] and services["vroom_beijing"]["ok"]},
+            "porto":      {"available": False},
+            "california": {"available": False},
+        },
+    }
 
 # Mount static UI at the very end so it doesn't override API routes
 from fastapi.staticfiles import StaticFiles
