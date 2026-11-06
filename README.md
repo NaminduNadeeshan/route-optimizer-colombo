@@ -2,6 +2,33 @@
 
 A 100% free, enterprise-grade route optimization engine built specifically for the Sri Lankan logistics and delivery industry. Powered by a custom **Spatio-Temporal Graph Attention Network (ST-GAT)**, this system predicts future traffic congestion across Colombo and uses the VROOM engine to optimally schedule fleet deliveries.
 
+> **Data disclaimer: this is a proof of concept trained on synthetic traffic data.**
+> The road network is real, but the traffic speeds the model learned from are simulated. Predictions do not reflect real Colombo traffic yet. See [About the training data](#about-the-training-data) below.
+
+---
+
+## About the training data
+
+**What is real**
+- The road graph: 13,499 intersections and 17,236 directed road segments taken from OSRM routes over the OpenStreetMap extract of Colombo (`data/real_traffic_edges_colombo.csv`).
+- The routing: OSRM travel times and VROOM stop ordering work on the real map.
+
+**What is synthetic**
+- The speeds in `real_traffic_edges_colombo.csv` are placeholders: every segment is recorded at 40 km/h for a single hour (12:00). No real GPS or traffic feed was used.
+- The training set is one generated year of hourly speeds (8,760 hours), built by `load_real_colombo_graph_advanced()` in `ml-pipeline/train_stgnn_colombo_advanced.py`:
+  - A fixed time-of-day curve applied to the base speed, for example 0.5× at 08:00 and 17:00–18:00 and up to 1.4× overnight.
+  - Calendar effects set by hand: weekend 1.15×, long weekend 1.4×, Poya 1.3× from 06:00 to 14:00 and 0.6× from 17:00 to 21:00, the days before Avurudu 1.6×, the days after 0.5×.
+  - Random noise (σ = 2 km/h), with speeds clipped to 5–50 km/h.
+- Poya and Avurudu dates are hard-coded for one calendar year, and weekdays assume 1 January falls on a Monday (as in 2024). Other years are not modelled correctly.
+- `ml-pipeline/data_simulator.py` generates simulated GPS pings (random speeds by time of day) for testing the ingestion pipeline only.
+
+**What this means**
+- Reported accuracy (for example a validation MAE of about 3.3 km/h) is measured against the same simulated generator, not real roads. It shows the pipeline works, not that the predictions are right.
+- On this data a simple "usual speed for this hour" lookup is as accurate as the neural network, because the data contains nothing more to learn.
+- The global datasets listed below (T-Drive, PeMS04, Porto) were explored in earlier experiments; the current Colombo weights are not pre-trained on them.
+
+**Help wanted:** anonymized, time-stamped GPS traces or speed data from Colombo roads would turn this into a real model. Please open an issue if you can share data or help build the pipeline.
+
 ---
 
 ## 🎯 Our Mission: Free AI for Sri Lankan Logistics
